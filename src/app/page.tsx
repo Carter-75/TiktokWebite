@@ -19,6 +19,9 @@ type TransferRecord = {
   targetId: string;
   sourceName: string;
   targetName: string;
+  sourceBalanceAfter?: number;
+  targetBalanceAfter?: number;
+  taxBalanceAfter?: number;
 };
 const revertTransactions = (
   players: Player[],
@@ -527,21 +530,21 @@ export default function Home() {
     const sourceLabel = shortAccountLabel(sourceId);
     const targetLabel = shortAccountLabel(targetId);
 
-    setPlayers((previous) =>
-      previous.map((player) => {
-        const key = playerKey(player.id);
-        let nextBalance = player.balance;
-        if (key === sourceId) {
-          nextBalance -= pendingAmount;
-        }
-        if (key === targetId) {
-          nextBalance += pendingAmount;
-        }
-        return nextBalance === player.balance
-          ? player
-          : { ...player, balance: nextBalance };
-      })
-    );
+    const nextPlayers = players.map((player) => {
+      const key = playerKey(player.id);
+      let nextBalance = player.balance;
+      if (key === sourceId) {
+        nextBalance -= pendingAmount;
+      }
+      if (key === targetId) {
+        nextBalance += pendingAmount;
+      }
+      return nextBalance === player.balance
+        ? player
+        : { ...player, balance: nextBalance };
+    });
+
+    setPlayers(nextPlayers);
 
     if (sourceId === TAX_ID) {
       setTaxBalance((previous) => previous - pendingAmount);
@@ -561,6 +564,26 @@ export default function Home() {
         targetId,
         sourceName: sourceLabel,
         targetName: targetLabel,
+        sourceBalanceAfter:
+          sourceId === BANK_ID
+            ? undefined
+            : sourceId === TAX_ID
+            ? taxBalance - pendingAmount
+            : nextPlayers.find((player) => playerKey(player.id) === sourceId)
+                ?.balance,
+        targetBalanceAfter:
+          targetId === BANK_ID
+            ? undefined
+            : targetId === TAX_ID
+            ? taxBalance + pendingAmount
+            : nextPlayers.find((player) => playerKey(player.id) === targetId)
+                ?.balance,
+        taxBalanceAfter:
+          sourceId === TAX_ID
+            ? taxBalance - pendingAmount
+            : targetId === TAX_ID
+            ? taxBalance + pendingAmount
+            : undefined,
       };
       return [record, ...previous].slice(0, 10);
     });
@@ -900,6 +923,21 @@ export default function Home() {
                           <span className={styles.historyAmount}>
                             {formatCurrency(record.amount)}
                           </span>
+                        </p>
+                        <p className={styles.historyAccounts}>
+                          {record.sourceBalanceAfter !== undefined && (
+                            <span>
+                              {record.sourceName}: {formatCurrency(record.sourceBalanceAfter)}
+                            </span>
+                          )}
+                          {record.targetBalanceAfter !== undefined && (
+                            <span>
+                              {record.targetName}: {formatCurrency(record.targetBalanceAfter)}
+                            </span>
+                          )}
+                          {record.taxBalanceAfter !== undefined && (
+                            <span>Tax Pile: {formatCurrency(record.taxBalanceAfter)}</span>
+                          )}
                         </p>
                       </div>
                       <button

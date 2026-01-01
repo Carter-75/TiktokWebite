@@ -480,6 +480,15 @@
   font-weight: 600;
 }
 
+.historyAccounts {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
 .revertButton {
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 999px;
