@@ -573,6 +573,9 @@ export default function Home() {
       setRecentHighlight({ source: null, target: null });
     }, 2500);
 
+    setPendingAmount(0);
+    setCustomAmount("");
+
     setFeedback(
       `Moved ${formatCurrency(pendingAmount)} from ${describeAccount(
         sourceId
