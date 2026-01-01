@@ -20,6 +20,84 @@ type TransferRecord = {
   sourceName: string;
   targetName: string;
 };
+const revertTransactions = (
+  players: Player[],
+  taxBalance: number,
+  history: TransferRecord[],
+  targetId: string
+) => {
+  const playerMap = new Map(players.map((player) => [playerKey(player.id), { ...player }]));
+  let nextTax = taxBalance;
+
+  const targetIndex = history.findIndex((record) => record.id === targetId);
+  if (targetIndex === -1) {
+    return { players, taxBalance, history };
+  }
+
+  const recordsToRevert = history.slice(0, targetIndex + 1);
+
+  recordsToRevert.forEach((record) => {
+    const { amount, sourceId, targetId: toId } = record;
+
+    if (sourceId === BANK_ID) {
+      if (toId === TAX_ID) {
+        nextTax -= amount;
+      } else {
+        const targetPlayer = playerMap.get(toId);
+        if (targetPlayer) {
+          targetPlayer.balance -= amount;
+        }
+      }
+      return;
+    }
+
+    if (toId === BANK_ID) {
+      if (sourceId === TAX_ID) {
+        nextTax += amount;
+      } else {
+        const sourcePlayer = playerMap.get(sourceId);
+        if (sourcePlayer) {
+          sourcePlayer.balance += amount;
+        }
+      }
+      return;
+    }
+
+    if (sourceId === TAX_ID) {
+      const targetPlayer = playerMap.get(toId);
+      if (targetPlayer) {
+        targetPlayer.balance -= amount;
+      }
+      nextTax += amount;
+      return;
+    }
+
+    if (toId === TAX_ID) {
+      const sourcePlayer = playerMap.get(sourceId);
+      if (sourcePlayer) {
+        sourcePlayer.balance += amount;
+      }
+      nextTax -= amount;
+      return;
+    }
+
+    const sourcePlayer = playerMap.get(sourceId);
+    const targetPlayer = playerMap.get(toId);
+    if (sourcePlayer) {
+      sourcePlayer.balance += amount;
+    }
+    if (targetPlayer) {
+      targetPlayer.balance -= amount;
+    }
+  });
+
+  const truncatedHistory = history.slice(targetIndex + 1);
+  return {
+    players: players.map((player) => playerMap.get(playerKey(player.id)) ?? player),
+    taxBalance: nextTax,
+    history: truncatedHistory,
+  };
+};
 
 const DENOMINATIONS = [1, 5, 10, 20, 50, 100, 500];
 const MIN_PLAYERS = 2;
@@ -323,6 +401,21 @@ export default function Home() {
     }
     const player = activePlayers.find((entry) => playerKey(entry.id) === id);
     return player ? player.name : "Player";
+  };
+
+  const handleRevertToHistory = (checkpointId: string) => {
+    const result = revertTransactions(players, taxBalance, history, checkpointId);
+    if (result.history === history) {
+      return;
+    }
+    setPlayers(result.players);
+    setTaxBalance(result.taxBalance);
+    setHistory(result.history);
+    setFeedback("Reverted to selected checkpoint.");
+    setPendingAmount(0);
+    setCustomAmount("");
+    setSourceId(BANK_ID);
+    setTargetId(playerKey(1));
   };
 
   const describeAccount = (id: string) => {
@@ -782,7 +875,7 @@ export default function Home() {
                 <p className={styles.historyEmpty}>No transfers yet.</p>
               ) : (
                 <ul className={styles.historyList}>
-                  {history.map((record) => (
+                  {history.map((record, index) => (
                     <li key={record.id} className={styles.historyItem}>
                       <div>
                         <p className={styles.historyNames}>
@@ -806,6 +899,13 @@ export default function Home() {
                           </span>
                         </p>
                       </div>
+                      <button
+                        type="button"
+                        className={styles.revertButton}
+                        onClick={() => handleRevertToHistory(record.id)}
+                      >
+                        Revert here
+                      </button>
                     </li>
                   ))}
                 </ul>
