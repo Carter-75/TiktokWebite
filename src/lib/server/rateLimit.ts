@@ -13,17 +13,25 @@ export class RateLimitError extends Error {
   }
 }
 
-const keyFromRequest = (request: NextRequest, namespace: string) => {
-  const ip = request.ip ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const ua = request.headers.get('user-agent') ?? 'unknown';
-  return `${namespace}:${ip}:${ua}`;
+const sanitizeIdentity = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/[^a-z0-9_-]/gi, '').slice(0, 64) || null;
 };
 
-export const enforceRateLimit = (request: NextRequest, namespace: string) => {
+const keyFromRequest = (request: NextRequest, namespace: string, identityKey?: string) => {
+  const ip = request.ip ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const ua = request.headers.get('user-agent') ?? 'unknown';
+  const identity = sanitizeIdentity(identityKey) ?? 'shared';
+  return `${namespace}:${identity}:${ip}:${ua}`;
+};
+
+export const enforceRateLimit = (request: NextRequest, namespace: string, identityKey?: string) => {
   const maxRequests = getMaxRequests();
   const windowMs = getWindowMs();
   if (!maxRequests || maxRequests <= 0) return;
-  const key = keyFromRequest(request, namespace);
+  const key = keyFromRequest(request, namespace, identityKey);
   const now = Date.now();
   const bucket = buckets.get(key) ?? { count: 0, reset: now + windowMs };
   if (now > bucket.reset) {

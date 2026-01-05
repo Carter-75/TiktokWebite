@@ -53,6 +53,8 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const retryTimerRef = useRef<number | null>(null);
   const toastCooldownRef = useRef<Record<string, number>>({});
   const offlineToastShown = useRef(false);
+  const rateLimitResetRef = useRef(0);
+  const rateLimitedRef = useRef(false);
   const { pushToast } = useToast();
 
   useEffect(() => {
@@ -102,9 +104,17 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
         signal: controller.signal,
       });
       if (res.status === 429) {
+        const retryAfterHeader = res.headers.get('Retry-After');
+        const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+        const retryAfterMs = Number.isFinite(retryAfterSeconds)
+          ? Math.max(500, retryAfterSeconds * 1000)
+          : Math.max(retryDelayRef.current, INITIAL_RETRY_DELAY);
+        rateLimitResetRef.current = Date.now() + retryAfterMs;
+        rateLimitedRef.current = true;
         setLastError('Rate limit hit');
         setStatus('retrying');
-        notify('rate-limit', 'warning', 'Easy there—give the feed a second to recover.');
+        const waitSeconds = Math.ceil(retryAfterMs / 1000);
+        notify('rate-limit', 'warning', `Easy there—give the feed ~${waitSeconds}s to recover.`);
         return null;
       }
       if (!res.ok) {
@@ -112,12 +122,16 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       }
       const json = (await res.json()) as GenerateApiResponse;
       setLastError(null);
+      rateLimitedRef.current = false;
+      rateLimitResetRef.current = 0;
       return json.product;
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         return null;
       }
       console.error('[feed] failed to fetch product', error);
+      rateLimitedRef.current = false;
+      rateLimitResetRef.current = 0;
       setLastError('Generation failed');
       setStatus('retrying');
       notify('generate-error', 'danger', 'Generation failed. Showing saved picks while we retry.');
@@ -128,6 +142,26 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   }, [payload, notify, automationEnabled]);
 
   const ensureFilled = useCallback(async () => {
+    const scheduleRateLimitRetry = (delayMs: number) => {
+      if (!hasWindow()) return;
+      window.clearTimeout(retryTimerRef.current ?? undefined);
+      retryTimerRef.current = window.setTimeout(() => {
+        rateLimitedRef.current = false;
+        rateLimitResetRef.current = 0;
+        retryDelayRef.current = INITIAL_RETRY_DELAY;
+        void ensureFilled();
+      }, Math.max(delayMs, 0));
+    };
+
+    const scheduleStandardRetry = () => {
+      if (!hasWindow()) return;
+      retryDelayRef.current = Math.min(retryDelayRef.current * 1.5, MAX_RETRY_DELAY);
+      window.clearTimeout(retryTimerRef.current ?? undefined);
+      retryTimerRef.current = window.setTimeout(() => {
+        void ensureFilled();
+      }, retryDelayRef.current);
+    };
+
     if (automationEnabled) {
       if (queueRef.current.length === 0) {
         const fallback = makeFallbackProduct();
@@ -138,19 +172,34 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       setStatus('idle');
       return;
     }
+
+    if (loading) {
+      return;
+    }
+
     if (queueRef.current.length >= DESIRED_QUEUE_LENGTH) {
       setStatus('idle');
       return;
     }
+
+    const now = Date.now();
+    if (rateLimitedRef.current && rateLimitResetRef.current > now) {
+      setStatus('retrying');
+      scheduleRateLimitRetry(rateLimitResetRef.current - now);
+      return;
+    }
+
+    rateLimitedRef.current = false;
+    rateLimitResetRef.current = 0;
     const next = await fetchNext();
     if (!next) {
-      if (hasWindow()) {
-        retryDelayRef.current = Math.min(retryDelayRef.current * 1.5, MAX_RETRY_DELAY);
-        window.clearTimeout(retryTimerRef.current ?? undefined);
-        retryTimerRef.current = window.setTimeout(() => {
-          void ensureFilled();
-        }, retryDelayRef.current);
+      if (rateLimitedRef.current && rateLimitResetRef.current > Date.now()) {
+        setStatus('retrying');
+        scheduleRateLimitRetry(rateLimitResetRef.current - Date.now());
+        return;
       }
+      setStatus('retrying');
+      scheduleStandardRetry();
       return;
     }
     retryDelayRef.current = INITIAL_RETRY_DELAY;
@@ -160,7 +209,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       persistPreloadQueue(updated);
       return updated;
     });
-  }, [fetchNext, automationEnabled]);
+  }, [fetchNext, automationEnabled, loading]);
 
   useEffect(() => {
     if (!hasWindow()) return undefined;

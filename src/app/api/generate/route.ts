@@ -45,9 +45,10 @@ const payloadSchema = z.object({
   preferStaticDataset: z.boolean().optional(),
 });
 
-export async function POST(request: NextRequest) {
+const guardRateLimit = (request: NextRequest, identity?: string) => {
   try {
-    enforceRateLimit(request, 'generate');
+    enforceRateLimit(request, 'generate', identity);
+    return null;
   } catch (error) {
     if (error instanceof RateLimitError) {
       return NextResponse.json(
@@ -57,12 +58,27 @@ export async function POST(request: NextRequest) {
     }
     throw error;
   }
+};
 
-  const body = await request.json();
+export async function POST(request: NextRequest) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    const rateLimitResponse = guardRateLimit(request, 'invalid');
+    if (rateLimitResponse) return rateLimitResponse;
+    return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+  }
+
   const parsed = payloadSchema.safeParse(body);
   if (!parsed.success) {
+    const rateLimitResponse = guardRateLimit(request, 'invalid');
+    if (rateLimitResponse) return rateLimitResponse;
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
+
+  const rateLimitResponse = guardRateLimit(request, parsed.data.sessionId ?? parsed.data.userId);
+  if (rateLimitResponse) return rateLimitResponse;
 
   const { response, cacheHit } = await requestProductPage(parsed.data, {
     forceNovelty: parsed.data.forceNovelty,
