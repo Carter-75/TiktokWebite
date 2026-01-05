@@ -4,6 +4,14 @@ const allowInlineScripts = process.env.NEXT_PUBLIC_E2E === 'true' || process.env
 const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
+  },
   async headers() {
     const scriptSrc = ["'self'", 'https://pagead2.googlesyndication.com', 'https://securepubads.g.doubleclick.net'];
     if (allowInlineScripts) {
@@ -30,7 +38,7 @@ const nextConfig = {
         value: [
           "default-src 'self'",
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-          "font-src 'self' https://fonts.gstatic.com",
+          "font-src 'self' https://fonts.gstatic.com https://r2cdn.perplexity.ai",
           "img-src 'self' data: https://*",
           `connect-src ${connectSrc.join(' ')}`,
           `script-src ${scriptSrc.join(' ')}`,

@@ -2,7 +2,7 @@ import { ProductGenerationRequest, ProductGenerationResponse } from '@/types/pro
 
 export type GenerateApiRequest = ProductGenerationRequest & {
   forceNovelty?: boolean;
-  preferStaticDataset?: boolean;
+  resultsRequested?: number;
 };
 
 export type GenerateApiResponse = ProductGenerationResponse & {

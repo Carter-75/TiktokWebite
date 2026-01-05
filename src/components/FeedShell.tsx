@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import AuthBadge from '@/components/AuthBadge';
 import GuestModeNotice from '@/components/GuestModeNotice';
+import FeedErrorCard from '@/components/FeedErrorCard';
+import FeedDiagnostics from '@/components/FeedDiagnostics';
 import InlineAd from '@/components/InlineAd';
-import InteractionBar from '@/components/InteractionBar';
 import LoaderSkeleton from '@/components/LoaderSkeleton';
 import PreferencesPanel from '@/components/PreferencesPanel';
 import ProductCard from '@/components/ProductCard';
@@ -17,7 +18,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { usePreloadQueue } from '@/hooks/usePreloadQueue';
 import { useToast } from '@/hooks/useToast';
 import { useUserSettings } from '@/hooks/useUserSettings';
-import { deriveSearchWeights, mergeSearchIntoPreferences } from '@/lib/feed/engine';
+import { deriveSearchWeights, mergeSearchIntoPreferences, Interaction } from '@/lib/feed/engine';
 import { eraseAllLocalState } from '@/lib/preferences/storage';
 import { ProductContent } from '@/types/product';
 
@@ -25,21 +26,23 @@ const SUPPRESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SUPPRESSION_MAX_ATTEMPTS = 5;
 const HISTORY_LIMIT = 10;
 const FUTURE_LIMIT = 10;
-const SEARCH_PERSISTENCE = 5;
 
 const FeedShell = () => {
   const { session, status: authStatus, login, logout } = useAuthClient();
-  const { preferences, history, recordInteraction, recordSearch, resetHistory, resetPreferences } = useFeedLearning();
+  const { preferences, history, recordInteraction, recordSearch, recordSave, resetHistory, resetPreferences } = useFeedLearning();
   const { vibrate } = useHaptics();
   const { settings, updateSettings, resetSettings } = useUserSettings();
   const { pushToast } = useToast();
   const [searchTerms, setSearchTerms] = useState<string[]>([]);
-  const [, setSearchBoostRemaining] = useState(0);
+  const [activeSearch, setActiveSearch] = useState<string | null>(null);
   const [currentProduct, setCurrentProduct] = useState<ProductContent | null>(null);
+  const [compareProduct, setCompareProduct] = useState<ProductContent | null>(null);
   const [past, setPast] = useState<ProductContent[]>([]);
   const [future, setFuture] = useState<ProductContent[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [isErasing, setIsErasing] = useState(false);
+  const blockedProductsRef = useRef<Set<string>>(new Set());
+  const canPersonalize = session?.mode === 'google';
 
   const mergedPreferences = useMemo(() => {
     if (!searchTerms.length) return preferences;
@@ -58,14 +61,15 @@ const FeedShell = () => {
       preferences: mergedPreferences,
       searchTerms,
       lastViewed,
-      preferStaticDataset: settings.preferStaticDataset,
+      resultsRequested: 2,
     }),
-    [session, mergedPreferences, searchTerms, lastViewed, settings.preferStaticDataset]
+    [session, mergedPreferences, searchTerms, lastViewed]
   );
 
-  const { queue, consumeNext, loading, status: queueStatus, lastError, isOffline, refresh } = usePreloadQueue({
-    ...generationPayload,
-  });
+  const { queue, consumeNext, loading, status: queueStatus, lastError, isOffline, refresh } = usePreloadQueue(
+    generationPayload
+  );
+  const queueLength = queue.length;
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -83,56 +87,114 @@ const FeedShell = () => {
     [history.viewTimestamps]
   );
 
-  const hydrateNext = useCallback(() => {
+  const takeNextProduct = useCallback(() => {
     let attempts = 0;
     let next = consumeNext();
-    while (next && isSuppressed(next.id) && attempts < SUPPRESSION_MAX_ATTEMPTS) {
+    while (
+      next &&
+      (isSuppressed(next.id) || blockedProductsRef.current.has(next.id)) &&
+      attempts < SUPPRESSION_MAX_ATTEMPTS
+    ) {
       attempts += 1;
       next = consumeNext();
     }
-    if (!next) return;
+    return next ?? null;
+  }, [consumeNext, isSuppressed]);
+
+  const commitView = useCallback(
+    (product: ProductContent) => {
+      if (canPersonalize) {
+        recordInteraction(product, 'viewed');
+      }
+    },
+    [canPersonalize, recordInteraction]
+  );
+
+  const hydratePrimary = useCallback(() => {
+    const next = takeNextProduct();
+    if (!next) return false;
     if (currentProduct) {
       setPast((prev) => [...prev.slice(-(HISTORY_LIMIT - 1)), currentProduct]);
     }
     setFuture([]);
     setCurrentProduct(next);
-    recordInteraction(next, 'viewed');
-    setSearchBoostRemaining((remaining) => {
-      if (remaining <= 1) {
-        setSearchTerms([]);
-        return 0;
-      }
-      return remaining - 1;
-    });
-  }, [consumeNext, currentProduct, isSuppressed, recordInteraction]);
+    commitView(next);
+    return true;
+  }, [takeNextProduct, currentProduct, commitView]);
+
+  const hydrateComparison = useCallback(() => {
+    const candidate = takeNextProduct();
+    setCompareProduct(candidate ?? null);
+  }, [takeNextProduct]);
 
   useEffect(() => {
-    if (!currentProduct && queue.length) {
-      hydrateNext();
+    if (!currentProduct && queueLength) {
+      const hydrated = hydratePrimary();
+      if (hydrated) {
+        setCompareProduct(null);
+        hydrateComparison();
+      }
     }
-  }, [queue, currentProduct, hydrateNext]);
+  }, [queueLength, currentProduct, hydratePrimary, hydrateComparison]);
 
-  const handleInteraction = (type: 'liked' | 'disliked' | 'reported') => {
-    if (!currentProduct) return;
-    if (type === 'liked') vibrate([18, 30, 22]);
-    if (type === 'disliked') vibrate([12, 20]);
-    if (type === 'reported') vibrate([6, 24, 6, 24, 40]);
-    recordInteraction(currentProduct, type);
-    hydrateNext();
-  };
-
-  const handleSearch = (value: string) => {
-    if (!value) {
-      setSearchTerms([]);
-      setSearchBoostRemaining(0);
-      return;
+  useEffect(() => {
+    if (currentProduct && !compareProduct && queueLength) {
+      hydrateComparison();
     }
-    vibrate(8);
-    const weights = deriveSearchWeights(value);
-    setSearchTerms(weights);
-    setSearchBoostRemaining(SEARCH_PERSISTENCE);
-    recordSearch(value, weights);
-  };
+  }, [currentProduct, compareProduct, queueLength, hydrateComparison]);
+
+  const promoteComparison = useCallback(
+    (withHaptics = true) => {
+      if (!compareProduct) return false;
+      if (withHaptics) {
+        vibrate([10, 8]);
+      }
+      if (currentProduct) {
+        setPast((prev) => [...prev.slice(-(HISTORY_LIMIT - 1)), currentProduct]);
+      }
+      setFuture([]);
+      setCurrentProduct(compareProduct);
+      commitView(compareProduct);
+      setCompareProduct(null);
+      hydrateComparison();
+      return true;
+    },
+    [compareProduct, currentProduct, commitView, hydrateComparison, vibrate]
+  );
+
+  const blockProduct = useCallback((productId: string) => {
+    blockedProductsRef.current.add(productId);
+  }, []);
+
+  const resetDeckState = useCallback(() => {
+    setPast([]);
+    setFuture([]);
+    setCurrentProduct(null);
+    setCompareProduct(null);
+  }, []);
+
+  const handleSearch = useCallback(
+    (rawValue: string) => {
+      const value = rawValue.trim();
+      if (!value) {
+        setActiveSearch(null);
+        setSearchTerms([]);
+        resetDeckState();
+        refresh();
+        return;
+      }
+      vibrate(8);
+      const weights = deriveSearchWeights(value);
+      setActiveSearch(value);
+      setSearchTerms(weights);
+      resetDeckState();
+      if (canPersonalize) {
+        recordSearch(value, weights);
+      }
+      refresh();
+    },
+    [canPersonalize, recordSearch, refresh, resetDeckState, vibrate]
+  );
 
   const handleBack = useCallback(() => {
     if (!currentProduct || past.length === 0) return;
@@ -141,7 +203,9 @@ const FeedShell = () => {
     setPast((prev) => prev.slice(0, -1));
     setFuture((prev) => [currentProduct, ...prev].slice(0, FUTURE_LIMIT));
     setCurrentProduct(previous);
-  }, [currentProduct, past, vibrate]);
+    setCompareProduct(null);
+    hydrateComparison();
+  }, [currentProduct, past, vibrate, hydrateComparison]);
 
   const advanceFromFuture = useCallback(() => {
     if (!future.length) return false;
@@ -151,19 +215,189 @@ const FeedShell = () => {
     }
     setFuture(rest);
     setCurrentProduct(next);
+    setCompareProduct(null);
+    hydrateComparison();
     return true;
-  }, [future, currentProduct]);
+  }, [future, currentProduct, hydrateComparison]);
 
-  const nextWithHaptics = useCallback(() => {
-    vibrate(10);
-    if (advanceFromFuture()) {
-      return;
-    }
-    hydrateNext();
-  }, [vibrate, advanceFromFuture, hydrateNext]);
+  const nextFromQueue = useCallback(
+    (withHaptics = true) => {
+      if (withHaptics) {
+        vibrate(10);
+      }
+      if (advanceFromFuture()) {
+        return;
+      }
+      if (promoteComparison(false)) {
+        return;
+      }
+      const hydrated = hydratePrimary();
+      if (hydrated) {
+        hydrateComparison();
+      }
+    },
+    [advanceFromFuture, promoteComparison, hydratePrimary, hydrateComparison, vibrate]
+  );
+
+  const persistInteraction = useCallback(
+    (product: ProductContent, interaction: Interaction) => {
+      if (canPersonalize) {
+        recordInteraction(product, interaction);
+      }
+    },
+    [canPersonalize, recordInteraction]
+  );
+
+  const handlePrimaryReaction = useCallback(
+    (type: 'liked' | 'disliked' | 'reported') => {
+      if (!currentProduct) return;
+      if (type === 'liked') {
+        vibrate([18, 30, 22]);
+        persistInteraction(currentProduct, 'liked');
+        setCompareProduct(null);
+        hydrateComparison();
+        return;
+      }
+      if (type === 'disliked') {
+        vibrate([12, 20]);
+        blockProduct(currentProduct.id);
+        persistInteraction(currentProduct, 'disliked');
+      } else {
+        vibrate([6, 24, 6, 24, 40]);
+        blockProduct(currentProduct.id);
+        persistInteraction(currentProduct, 'reported');
+      }
+      nextFromQueue(false);
+    },
+    [blockProduct, currentProduct, hydrateComparison, nextFromQueue, persistInteraction, vibrate]
+  );
+
+  const handleComparisonReaction = useCallback(
+    (type: 'liked' | 'disliked' | 'reported') => {
+      if (!compareProduct) return;
+      if (type === 'liked') {
+        vibrate([14, 18]);
+        persistInteraction(compareProduct, 'liked');
+        promoteComparison(false);
+        return;
+      }
+      if (type === 'disliked') {
+        vibrate(12);
+        blockProduct(compareProduct.id);
+        persistInteraction(compareProduct, 'disliked');
+      } else {
+        vibrate([6, 18, 6]);
+        blockProduct(compareProduct.id);
+        persistInteraction(compareProduct, 'reported');
+      }
+      setCompareProduct(null);
+      hydrateComparison();
+    },
+    [blockProduct, compareProduct, hydrateComparison, persistInteraction, promoteComparison, vibrate]
+  );
+
+  const handleSaveProduct = useCallback(
+    (product: ProductContent) => {
+      if (!product) return;
+      if (!canPersonalize) {
+        pushToast({ tone: 'info', message: 'Sign in to save picks to your account.' });
+        return;
+      }
+      recordSave(product);
+      pushToast({ tone: 'success', message: `${product.title} saved to your locker.` });
+    },
+    [canPersonalize, pushToast, recordSave]
+  );
 
   const canGoBack = past.length > 0;
-  const canGoForward = future.length > 0;
+  const canGoForward = future.length > 0 || Boolean(compareProduct) || queueLength > 0;
+
+  const showLoader = !currentProduct;
+  const loaderStatus = queueStatus === 'retrying' ? 'Recovering product queue…' : 'Pairing contenders…';
+  const loaderDetail = lastError
+    ? lastError
+    : authStatus !== 'ready'
+      ? 'Syncing session and preferences before loading the deck.'
+      : isOffline
+        ? 'Offline mode: serving cached drops until connection resumes.'
+        : 'Hydrating the deck and tuning tag weights.';
+  const blockingMessage = isOffline
+    ? 'You appear to be offline. Reconnect to load fresh contenders.'
+    : lastError ?? null;
+  const showErrorCard = showLoader && !loading && Boolean(blockingMessage);
+
+  const diagnostics = useMemo(
+    () => ({
+      authStatus,
+      queueStatus,
+      queueLength,
+      lastError,
+      isOffline,
+      sessionMode: session?.mode ?? 'guest',
+      activeSearch,
+      currentProductId: currentProduct?.id ?? null,
+      compareProductId: compareProduct?.id ?? null,
+    }),
+    [
+      authStatus,
+      queueStatus,
+      queueLength,
+      lastError,
+      isOffline,
+      session?.mode,
+      activeSearch,
+      currentProduct?.id,
+      compareProduct?.id,
+    ]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as typeof window & { __feedDiagnostics?: unknown }).__feedDiagnostics = diagnostics;
+  }, [diagnostics]);
+
+  const renderSlot = (
+    label: string,
+    product: ProductContent | null,
+    slot: 'primary' | 'comparison',
+    onReact: (type: 'liked' | 'disliked' | 'reported') => void
+  ) => (
+    <section className="dual-slot" data-slot={slot} aria-live="polite">
+      <div className="dual-slot__header">
+        <div>
+          <span>{slot === 'primary' ? 'Spotlight' : 'Challenger'}</span>
+          <strong>{label}</strong>
+        </div>
+      </div>
+      {product ? (
+        <>
+          <ProductCard product={product} variant={slot} />
+          <div className="dual-slot__actions">
+            <button type="button" className="button is-success is-light" onClick={() => onReact('liked')}>
+              👍 Like
+            </button>
+            <button type="button" className="button is-warning is-light" onClick={() => onReact('disliked')}>
+              👎 Dislike
+            </button>
+            <button
+              type="button"
+              className="button is-link is-light"
+              onClick={() => handleSaveProduct(product)}
+              disabled={!canPersonalize}
+              title={canPersonalize ? undefined : 'Sign in to save favorites'}
+            >
+              💾 Save
+            </button>
+            <button type="button" className="button is-danger is-light" onClick={() => onReact('reported')}>
+              🚩 Report
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="dual-slot__empty">Fetching another product…</div>
+      )}
+    </section>
+  );
 
   const handleEraseAllData = useCallback(async () => {
     if (isErasing) return;
@@ -173,11 +407,10 @@ const FeedShell = () => {
       resetHistory();
       resetPreferences();
       resetSettings();
-      setPast([]);
-      setFuture([]);
-      setCurrentProduct(null);
+      blockedProductsRef.current.clear();
+      resetDeckState();
       setSearchTerms([]);
-      setSearchBoostRemaining(0);
+      setActiveSearch(null);
       await fetch('/api/data/erase', { method: 'POST' }).catch(() => undefined);
       await logout();
       refresh();
@@ -188,7 +421,17 @@ const FeedShell = () => {
     } finally {
       setIsErasing(false);
     }
-  }, [isErasing, resetHistory, resetPreferences, resetSettings, logout, refresh, pushToast]);
+  }, [
+    blockedProductsRef,
+    isErasing,
+    logout,
+    pushToast,
+    refresh,
+    resetDeckState,
+    resetHistory,
+    resetPreferences,
+    resetSettings,
+  ]);
 
   return (
     <div className="feed-shell">
@@ -221,32 +464,64 @@ const FeedShell = () => {
         </div>
       )}
 
-      <SearchBar onSearch={handleSearch} />
+      <SearchBar onSearch={handleSearch} activeQuery={activeSearch ?? undefined} onClear={() => handleSearch('')} />
+      {!canPersonalize && (
+        <div className="feed-shell__status feed-shell__status--info" role="status">
+          Sign in to keep training data and save favorites across sessions.
+        </div>
+      )}
       {session?.mode === 'guest' && <GuestModeNotice onLogin={login} />}
 
       <div className="feed-shell__content">
         <div className="feed-shell__primary">
-          {!currentProduct || authStatus !== 'ready' ? (
-            <LoaderSkeleton />
+          {showLoader ? (
+            showErrorCard && blockingMessage ? (
+              <FeedErrorCard
+                message={blockingMessage}
+                onRetry={() => refresh()}
+                onShowDiagnostics={() => setPanelOpen(true)}
+                busy={queueStatus === 'loading'}
+                isOffline={isOffline}
+              />
+            ) : (
+              <LoaderSkeleton status={loaderStatus} detail={loaderDetail} />
+            )
           ) : (
             <>
-              <ProductCard product={currentProduct} />
+              <div className="dual-deck">
+                {renderSlot('Keep or trade this pick', currentProduct, 'primary', handlePrimaryReaction)}
+                {renderSlot('Find a rival to compare', compareProduct, 'comparison', handleComparisonReaction)}
+              </div>
               <InlineAd />
-              <InteractionBar
-                disabled={loading}
-                onLike={() => handleInteraction('liked')}
-                onDislike={() => handleInteraction('disliked')}
-                onReport={() => handleInteraction('reported')}
-                onNext={nextWithHaptics}
-                onBack={handleBack}
-                canGoBack={canGoBack}
-                canGoForward={canGoForward}
-              />
+              <div className="dual-deck__nav">
+                <button type="button" className="button is-light" onClick={handleBack} disabled={!canGoBack}>
+                  ⏮ Back
+                </button>
+                <button
+                  type="button"
+                  className="button is-info is-light"
+                  onClick={() => nextFromQueue(true)}
+                  disabled={!canGoForward || loading}
+                >
+                  ⏭ New matchup
+                </button>
+              </div>
             </>
           )}
         </div>
         <div className="feed-shell__secondary">
           <SidebarAd />
+          <FeedDiagnostics
+            authStatus={authStatus}
+            queueStatus={queueStatus}
+            queueLength={queueLength}
+            lastError={lastError}
+            isOffline={isOffline}
+            sessionMode={session?.mode}
+            activeSearch={activeSearch}
+            currentProduct={currentProduct}
+            compareProduct={compareProduct}
+          />
         </div>
       </div>
 

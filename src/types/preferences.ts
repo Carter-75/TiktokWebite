@@ -5,7 +5,7 @@ export type PreferenceSnapshot = {
   tagWeights: Record<string, number>;
 };
 
-export type HistoryEventType = 'viewed' | 'liked' | 'disliked' | 'reported' | 'search';
+export type HistoryEventType = 'viewed' | 'liked' | 'disliked' | 'reported' | 'search' | 'saved';
 
 export type HistoryTimelineEntry = {
   id: string;
@@ -34,6 +34,7 @@ export type HistorySnapshot = {
   liked: string[];
   disliked: string[];
   reported: string[];
+  saved: string[];
   searches: SearchHistoryEntry[];
   timeline: HistoryTimelineEntry[];
   viewTimestamps: Record<string, string>;
@@ -42,7 +43,6 @@ export type HistorySnapshot = {
 export type HistoryRetentionMode = 'balanced' | 'extended' | 'unlimited';
 
 export type UserSettings = {
-  preferStaticDataset: boolean;
   telemetryEnabled: boolean;
   reducedMotionMode: boolean;
   historyRetentionMode: HistoryRetentionMode;

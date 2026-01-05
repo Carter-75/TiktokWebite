@@ -30,13 +30,13 @@ const defaultHistory: HistorySnapshot = {
   liked: [],
   disliked: [],
   reported: [],
+  saved: [],
   searches: [],
   timeline: [],
   viewTimestamps: {},
 };
 
 const defaultSettings: UserSettings = {
-  preferStaticDataset: false,
   telemetryEnabled: true,
   reducedMotionMode: false,
   historyRetentionMode: 'balanced',
@@ -113,6 +113,7 @@ export const loadHistorySnapshot = (): HistorySnapshot => {
   return {
     ...defaultHistory,
     ...parsed,
+    saved: parsed.saved ?? [],
     timeline: normalizeTimeline(parsed.timeline),
     searches: normalizeSearches(parsed.searches),
     viewTimestamps: parsed.viewTimestamps ?? {},
@@ -143,6 +144,7 @@ export const applyHistoryRetention = (
     liked: cap(snapshot.liked, rules.events),
     disliked: cap(snapshot.disliked, rules.events),
     reported: cap(snapshot.reported, rules.events),
+    saved: cap(snapshot.saved, rules.events),
     searches: cap(snapshot.searches, rules.searches),
     timeline: cap(snapshot.timeline, rules.timeline),
     viewTimestamps: rules.timestampDays === null ? snapshot.viewTimestamps : filteredTimestamps,

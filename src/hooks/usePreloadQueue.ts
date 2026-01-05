@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useToast } from '@/hooks/useToast';
-import { staticProducts } from '@/lib/data/staticProducts';
 import { loadPreloadQueue, persistPreloadQueue } from '@/lib/preferences/storage';
 import { GenerateApiRequest, GenerateApiResponse } from '@/types/api';
 import { ProductContent } from '@/types/product';
@@ -13,19 +12,43 @@ const detectAutomationMode = () =>
   (typeof navigator !== 'undefined' && navigator.webdriver) ||
   (typeof document !== 'undefined' && document.cookie?.includes('pp-e2e=1'));
 
-const DESIRED_QUEUE_LENGTH = 3;
+const DEBUG_ENABLED = process.env.NODE_ENV !== 'production';
+const debugLog = (...args: unknown[]) => {
+  if (!DEBUG_ENABLED) return;
+  // eslint-disable-next-line no-console
+  console.info('[preload]', ...args);
+};
+
+const DESIRED_QUEUE_LENGTH = 5;
 const INITIAL_RETRY_DELAY = 1200;
 const MAX_RETRY_DELAY = 15000;
 
-const makeFallbackProduct = (): ProductContent => {
-  const base = staticProducts[Math.floor(Math.random() * staticProducts.length)];
-  return {
-    ...base,
-    id: `${base.id}-${Math.random().toString(36).slice(2, 8)}`,
-    generatedAt: new Date().toISOString(),
-    source: 'hybrid',
-  };
-};
+const makeAutomationProduct = (): ProductContent => ({
+  id: `seed-product-${Math.random().toString(36).slice(2, 7)}`,
+  title: 'Seeded Neon Diffuser',
+  summary: 'Deterministic fallback product for automated smoke testing.',
+  whatItIs: 'Tabletop aroma diffuser that projects synced neon gradients.',
+  whyUseful: 'Keeps air fragrant while doubling as reactive ambient lighting.',
+  priceRange: { min: 89, max: 129, currency: 'USD' },
+  pros: ['Reusable scent pods', 'Pairs with smart homes', 'USB-C nano-mist chamber'],
+  cons: ['Pods sold separately'],
+  tags: [
+    { id: 'decor', label: 'Decor' },
+    { id: 'wellness', label: 'Wellness' },
+  ],
+  buyLinks: [
+    {
+      label: 'Pulse Shop',
+      url: 'https://example.com/pulse',
+      priceHint: '$99 kit',
+      trusted: true,
+    },
+  ],
+  mediaUrl: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=80',
+  noveltyScore: 0.42,
+  generatedAt: new Date().toISOString(),
+  source: 'hybrid',
+});
 
 const hasWindow = () => typeof window !== 'undefined';
 
@@ -33,7 +56,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const initialQueue = useMemo(() => (hasWindow() ? loadPreloadQueue() : []), []);
   const automationEnabled = detectAutomationMode();
   const [queue, setQueue] = useState<ProductContent[]>(() =>
-    initialQueue.length ? initialQueue : automationEnabled ? [makeFallbackProduct()] : []
+    initialQueue.length ? initialQueue : automationEnabled ? [makeAutomationProduct()] : []
   );
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'retrying'>('idle');
@@ -56,13 +79,13 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const rateLimitResetRef = useRef(0);
   const rateLimitedRef = useRef(false);
   const fetchInFlightRef = useRef(false);
-  const pendingRateLimitFallbackRef = useRef<ProductContent | null>(null);
   const ensureFilledRef = useRef<() => Promise<void>>();
   const { pushToast } = useToast();
 
   useEffect(() => {
     queueRef.current = queue;
-  }, [queue]);
+    debugLog('queue:update', { length: queue.length, status, lastError });
+  }, [queue, status, lastError]);
 
   const notify = useCallback(
     (key: string, tone: 'info' | 'success' | 'warning' | 'danger', message: string) => {
@@ -77,13 +100,13 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
   const payloadKey = useMemo(() => JSON.stringify(payload), [payload]);
 
-  const fetchNext = useCallback(async (): Promise<ProductContent | null> => {
+  const fetchNext = useCallback(async (): Promise<ProductContent[] | null> => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     if (automationEnabled) {
-      return makeFallbackProduct();
+      return [makeAutomationProduct(), makeAutomationProduct()];
     }
 
     if (hasWindow() && !navigator.onLine) {
@@ -92,7 +115,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
         offlineToastShown.current = true;
         notify('offline', 'warning', 'Offline detected. Serving cached drops.');
       }
-      return makeFallbackProduct();
+      return null;
     }
 
     offlineToastShown.current = false;
@@ -100,6 +123,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
     try {
       setLoading(true);
       setStatus('loading');
+      debugLog('fetch:start', { queued: queueRef.current.length, searchTerms: payload.searchTerms.length });
       const res = await fetch('/api/generate', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -114,32 +138,57 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
           : Math.max(retryDelayRef.current, INITIAL_RETRY_DELAY);
         rateLimitResetRef.current = Date.now() + retryAfterMs;
         rateLimitedRef.current = true;
-        pendingRateLimitFallbackRef.current = makeFallbackProduct();
         setLastError('Rate limit hit');
         setStatus('retrying');
         const waitSeconds = Math.ceil(retryAfterMs / 1000);
         notify('rate-limit', 'warning', `Easy there—give the feed ~${waitSeconds}s to recover.`);
+        debugLog('fetch:rate-limit', { retryAfterMs, waitSeconds });
         return null;
       }
       if (!res.ok) {
-        throw new Error(`Unable to generate product (${res.status})`);
+        const contentType = res.headers.get('content-type') ?? '';
+        let errorMessage = `Unable to generate product (${res.status})`;
+        if (contentType.includes('application/json')) {
+          try {
+            const errorJson = (await res.json()) as { error?: string };
+            if (typeof errorJson?.error === 'string') {
+              errorMessage = errorJson.error;
+            }
+          } catch {
+            // ignore JSON parse issues and fall back to default message
+          }
+        } else {
+          try {
+            const errorText = (await res.text()).trim();
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        throw new Error(errorMessage);
       }
       const json = (await res.json()) as GenerateApiResponse;
       setLastError(null);
       rateLimitedRef.current = false;
       rateLimitResetRef.current = 0;
-      return json.product;
+      debugLog('fetch:success', { products: json.products?.length ?? 0, cacheHit: json.cacheHit ?? false });
+      return json.products ?? [];
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
+        debugLog('fetch:aborted');
         return null;
       }
       console.error('[feed] failed to fetch product', error);
       rateLimitedRef.current = false;
       rateLimitResetRef.current = 0;
-      setLastError('Generation failed');
+      const message = (error as Error).message || 'Generation failed';
+      setLastError(message);
       setStatus('retrying');
-      notify('generate-error', 'danger', 'Generation failed. Showing saved picks while we retry.');
-      return makeFallbackProduct();
+      notify('generate-error', 'danger', `${message}. Showing saved picks while we retry.`);
+      debugLog('fetch:error', { message });
+      return null;
     } finally {
       setLoading(false);
     }
@@ -166,24 +215,12 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       }, retryDelayRef.current);
     };
 
-    const pushPendingRateLimitFallback = () => {
-      if (!pendingRateLimitFallbackRef.current) return false;
-      const fallback = pendingRateLimitFallbackRef.current;
-      pendingRateLimitFallbackRef.current = null;
-      setQueue((prev) => {
-        const updated = [...prev, fallback];
-        persistPreloadQueue(updated);
-        return updated;
-      });
-      return true;
-    };
-
     if (automationEnabled) {
       if (queueRef.current.length === 0) {
-        const fallback = makeFallbackProduct();
-        queueRef.current = [fallback];
-        setQueue([fallback]);
-        persistPreloadQueue([fallback]);
+        const automationProduct = makeAutomationProduct();
+        queueRef.current = [automationProduct];
+        setQueue([automationProduct]);
+        persistPreloadQueue([automationProduct]);
       }
       setStatus('idle');
       return;
@@ -200,7 +237,6 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
     const now = Date.now();
     if (rateLimitedRef.current && rateLimitResetRef.current > now) {
-      pushPendingRateLimitFallback();
       setStatus('retrying');
       scheduleRateLimitRetry(rateLimitResetRef.current - now);
       return;
@@ -210,24 +246,21 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
     rateLimitResetRef.current = 0;
     fetchInFlightRef.current = true;
     try {
-      const next = await fetchNext();
-      if (!next) {
-        const insertedFallback = pushPendingRateLimitFallback();
+      const nextBatch = await fetchNext();
+      if (!nextBatch || nextBatch.length === 0) {
         if (rateLimitedRef.current && rateLimitResetRef.current > Date.now()) {
           setStatus('retrying');
           scheduleRateLimitRetry(rateLimitResetRef.current - Date.now());
           return;
         }
-        if (!insertedFallback) {
-          setStatus('retrying');
-        }
+        setStatus('retrying');
         scheduleStandardRetry();
         return;
       }
       retryDelayRef.current = INITIAL_RETRY_DELAY;
       setStatus('idle');
       setQueue((prev) => {
-        const updated = [...prev, next];
+        const updated = [...prev, ...nextBatch];
         persistPreloadQueue(updated);
         return updated;
       });
@@ -262,7 +295,6 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
   useEffect(() => {
     retryDelayRef.current = INITIAL_RETRY_DELAY;
-    pendingRateLimitFallbackRef.current = null;
     rateLimitedRef.current = false;
     rateLimitResetRef.current = 0;
     fetchInFlightRef.current = false;
@@ -292,10 +324,10 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       return;
     }
     if (queueRef.current.length === 0) {
-      const fallback = makeFallbackProduct();
-      queueRef.current = [fallback];
-      setQueue([fallback]);
-      persistPreloadQueue([fallback]);
+      const automationProduct = makeAutomationProduct();
+      queueRef.current = [automationProduct];
+      setQueue([automationProduct]);
+      persistPreloadQueue([automationProduct]);
       setStatus('idle');
     }
   }, [automationEnabled]);

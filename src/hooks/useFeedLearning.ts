@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { adjustWeights, Interaction } from '@/lib/feed/engine';
 import {
@@ -16,8 +16,13 @@ import { ProductContent } from '@/types/product';
 const makeHistoryEntryId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 export const useFeedLearning = () => {
-  const [preferences, setPreferences] = useState(loadPreferenceSnapshot);
-  const [history, setHistory] = useState(loadHistorySnapshot);
+  const [preferences, setPreferences] = useState(createBlankPreferences);
+  const [history, setHistory] = useState(createBlankHistory);
+
+  useEffect(() => {
+    setPreferences(loadPreferenceSnapshot());
+    setHistory(loadHistorySnapshot());
+  }, []);
 
   const recordInteraction = useCallback((product: ProductContent, interaction: Interaction) => {
     setPreferences((prev) => {
@@ -43,6 +48,33 @@ export const useFeedLearning = () => {
           {
             id: makeHistoryEntryId(),
             type: interaction,
+            occurredAt: nowIso,
+            product: {
+              id: product.id,
+              title: product.title,
+              tags: product.tags.map((tag) => tag.label),
+            },
+          },
+        ],
+      };
+      persistHistorySnapshot(updatedHistory);
+      return updatedHistory;
+    });
+  }, []);
+
+  const recordSave = useCallback((product: ProductContent) => {
+    setHistory((prev) => {
+      const nowIso = new Date().toISOString();
+      const savedSet = new Set(prev.saved);
+      savedSet.add(product.id);
+      const updatedHistory = {
+        ...prev,
+        saved: Array.from(savedSet),
+        timeline: [
+          ...prev.timeline,
+          {
+            id: makeHistoryEntryId(),
+            type: 'saved' as const,
             occurredAt: nowIso,
             product: {
               id: product.id,
@@ -97,5 +129,5 @@ export const useFeedLearning = () => {
     persistPreferenceSnapshot(blank);
   }, []);
 
-  return { preferences, history, recordInteraction, recordSearch, resetHistory, resetPreferences };
+  return { preferences, history, recordInteraction, recordSearch, recordSave, resetHistory, resetPreferences };
 };

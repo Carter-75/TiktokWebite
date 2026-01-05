@@ -5,28 +5,38 @@ import { POST } from '@/app/api/generate/route';
 import { requestProductPage } from '@/lib/ai/client';
 import { resetRateLimiters } from '@/lib/server/rateLimit';
 
-vi.mock('@/lib/ai/client', () => ({
-  requestProductPage: vi.fn().mockResolvedValue({
-    response: {
-      product: {
-        id: 'test-product',
-        title: 'Test Product',
-        summary: 'Summary',
-        whatItIs: 'Something great',
-        whyUseful: 'Because reasons',
-        priceRange: { min: 10, max: 20, currency: 'USD' },
-        pros: ['pro'],
-        cons: ['con'],
-        tags: [{ id: 'tag', label: 'Tag' }],
-        buyLinks: [{ label: 'Store', url: 'https://example.com', trusted: true }],
-        noveltyScore: 0.5,
-        generatedAt: new Date().toISOString(),
-        source: 'ai',
-      },
-    },
-    cacheHit: false,
-  }),
+const mockProduct = vi.hoisted(() => ({
+  id: 'test-product',
+  title: 'Test Product',
+  summary: 'Summary',
+  whatItIs: 'Something great',
+  whyUseful: 'Because reasons',
+  priceRange: { min: 10, max: 20, currency: 'USD' },
+  pros: ['pro'],
+  cons: ['con'],
+  tags: [{ id: 'tag', label: 'Tag' }],
+  buyLinks: [{ label: 'Store', url: 'https://example.com', trusted: true }],
+  noveltyScore: 0.5,
+  generatedAt: '2025-01-01T00:00:00.000Z',
+  source: 'ai' as const,
+  mediaUrl: 'https://example.com/image.jpg',
 }));
+
+vi.mock('@/lib/ai/client', () => {
+  const buildProducts = () => [
+    { ...mockProduct, generatedAt: new Date().toISOString() },
+    { ...mockProduct, id: 'test-product-2', generatedAt: new Date().toISOString() },
+  ];
+  return {
+    requestProductPage: vi.fn().mockResolvedValue({
+      response: {
+        products: buildProducts(),
+      },
+      cacheHit: false,
+    }),
+  };
+});
+
 
 const makeRequest = (body: unknown) =>
   new NextRequest('http://localhost/api/generate', {
@@ -63,7 +73,9 @@ describe('/api/generate', () => {
     };
     const res = await POST(makeRequest(payload));
     expect(res.status).toBe(200);
-    expect(await res.json()).toHaveProperty('product.id', 'test-product');
+    const json = await res.json();
+    expect(json.products).toHaveLength(2);
+    expect(json.products[0].id).toBe('test-product');
   });
 
   it('rate limits after threshold', async () => {
@@ -83,5 +95,25 @@ describe('/api/generate', () => {
     await POST(makeRequest(payload));
     const second = await POST(makeRequest(payload));
     expect(second.status).toBe(429);
+  });
+
+  it('surfaces 503 when provider fails', async () => {
+    vi.mocked(requestProductPage).mockRejectedValueOnce(new Error('boom'));
+    const payload = {
+      sessionId: 's1',
+      userId: 'u1',
+      preferences: {
+        likedTags: [],
+        dislikedTags: [],
+        blacklistedItems: [],
+        tagWeights: {},
+      },
+      searchTerms: [],
+      lastViewed: [],
+    };
+    const res = await POST(makeRequest(payload));
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toMatch(/unavailable/i);
   });
 });

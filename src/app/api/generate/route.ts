@@ -42,7 +42,7 @@ const payloadSchema = z.object({
     )
     .default([]),
   forceNovelty: z.boolean().optional(),
-  preferStaticDataset: z.boolean().optional(),
+  resultsRequested: z.number().int().min(2).max(4).optional(),
 });
 
 const guardRateLimit = (request: NextRequest, identity?: string) => {
@@ -80,11 +80,17 @@ export async function POST(request: NextRequest) {
   const rateLimitResponse = guardRateLimit(request, parsed.data.sessionId ?? parsed.data.userId);
   if (rateLimitResponse) return rateLimitResponse;
 
-  const { response, cacheHit } = await requestProductPage(parsed.data, {
-    forceNovelty: parsed.data.forceNovelty,
-    preferStatic: parsed.data.preferStaticDataset,
-  });
-  recordMetric('api.generate', { cacheHit, preferStatic: parsed.data.preferStaticDataset });
-
-  return NextResponse.json({ ...response, cacheHit });
+  try {
+    const { response, cacheHit } = await requestProductPage(parsed.data, {
+      forceNovelty: parsed.data.forceNovelty,
+    });
+    recordMetric('api.generate', {
+      cacheHit,
+      requested: parsed.data.resultsRequested ?? 2,
+    });
+    return NextResponse.json({ ...response, cacheHit });
+  } catch (error) {
+    console.error('[api.generate] provider failure', error);
+    return NextResponse.json({ error: 'Product generation is unavailable right now.' }, { status: 503 });
+  }
 }

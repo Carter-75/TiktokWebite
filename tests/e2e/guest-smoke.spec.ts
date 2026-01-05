@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 const seededProduct = {
@@ -25,10 +26,13 @@ const seededProduct = {
   noveltyScore: 0.42,
   generatedAt: new Date().toISOString(),
   source: 'hybrid',
+  mediaUrl: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=80',
 };
 
-const waitForProductCard = async (page) => {
-  await page.getByTestId('product-card').waitFor({ state: 'visible', timeout: 25000 });
+const waitForProductCard = async (page: Page) => {
+  await page
+    .locator('[data-testid="product-card"][data-variant="primary"]')
+    .waitFor({ state: 'visible', timeout: 25000 });
 };
 
 test.describe('Guest feed smoke test', () => {
@@ -41,7 +45,18 @@ test.describe('Guest feed smoke test', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ product: { ...seededProduct, generatedAt: new Date().toISOString() }, cacheHit: false }),
+        body: JSON.stringify({
+          products: [
+            { ...seededProduct, generatedAt: new Date().toISOString() },
+            {
+              ...seededProduct,
+              id: 'seed-product-2',
+              title: 'Seeded Neon Diffuser II',
+              generatedAt: new Date().toISOString(),
+            },
+          ],
+          cacheHit: false,
+        }),
       });
     });
 
@@ -63,7 +78,17 @@ test.describe('Guest feed smoke test', () => {
       };
       window.localStorage.setItem(
         'preload_queue',
-        JSON.stringify({ queue: [hydrated], hydratedAt: new Date().toISOString() })
+        JSON.stringify({
+          queue: [
+            hydrated,
+            {
+              ...hydrated,
+              id: 'seed-product-2',
+              title: 'Seeded Neon Diffuser II',
+            },
+          ],
+          hydratedAt: new Date().toISOString(),
+        })
       );
     }, seededProduct);
 
@@ -82,8 +107,21 @@ test.describe('Guest feed smoke test', () => {
     await expect(page.getByRole('heading', { name: 'Control Center' })).toBeVisible();
     await page.getByRole('button', { name: /Close preferences/i }).click();
 
-    await expect(page.getByRole('button', { name: /Like/i })).toBeVisible();
-    await page.getByRole('button', { name: /Next/i }).click();
+    const primarySlot = page.locator('[data-slot="primary"]');
+    const challengerSlot = page.locator('[data-slot="comparison"]');
+    await expect(primarySlot.locator('[data-testid="product-card"]')).toBeVisible();
+    await expect(challengerSlot.locator('[data-testid="product-card"]')).toBeVisible();
+
+    const challengerSaveButton = challengerSlot.getByRole('button', { name: /Save/i });
+    await expect(challengerSaveButton).toBeDisabled();
+
+    await challengerSlot.getByRole('button', { name: '👍 Like' }).click();
+    await waitForProductCard(page);
+
+    await challengerSlot.getByRole('button', { name: '👎 Dislike' }).click();
+    await expect(challengerSlot).toBeVisible();
+
+    await page.getByRole('button', { name: /New matchup/i }).click();
     await waitForProductCard(page);
 
     const axeResults = await new AxeBuilder({ page })

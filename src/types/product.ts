@@ -52,10 +52,11 @@ export type ProductGenerationRequest = {
   };
   searchTerms: string[];
   lastViewed: ProductContent[];
+  resultsRequested?: number;
 };
 
 export type ProductGenerationResponse = {
-  product: ProductContent;
+  products: ProductContent[];
   debug?: {
     promptTokens?: number;
     completionTokens?: number;

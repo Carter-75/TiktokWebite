@@ -26,6 +26,7 @@ const HISTORY_FILTER_LABELS: Record<HistoryEventType | 'all', string> = {
   disliked: 'Disliked',
   reported: 'Reported',
   search: 'Searches',
+  saved: 'Saved',
 };
 
 const formatRelativeTime = (iso: string) => {
@@ -144,17 +145,6 @@ const PreferencesPanel = ({
           <label className="preferences-panel__toggle">
             <input
               type="checkbox"
-              checked={settings.preferStaticDataset}
-              onChange={(event) => onUpdateSetting('preferStaticDataset', event.target.checked)}
-            />
-            <div>
-              <strong>Offline / static mode</strong>
-              <p>Skip remote AI calls and rely on the curated dataset for guaranteed speed.</p>
-            </div>
-          </label>
-          <label className="preferences-panel__toggle">
-            <input
-              type="checkbox"
               checked={settings.reducedMotionMode}
               onChange={(event) => onUpdateSetting('reducedMotionMode', event.target.checked)}
             />
@@ -205,6 +195,10 @@ const PreferencesPanel = ({
             <li>
               <span>Reports</span>
               <strong>{history.reported.length}</strong>
+            </li>
+            <li>
+              <span>Saved</span>
+              <strong>{history.saved.length}</strong>
             </li>
             <li>
               <span>Searches</span>

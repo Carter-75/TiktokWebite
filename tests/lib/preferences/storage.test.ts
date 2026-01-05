@@ -24,6 +24,7 @@ const makeSnapshot = (size: number): HistorySnapshot => {
     liked: makeIds('liked', size),
     disliked: makeIds('disliked', size),
     reported: makeIds('reported', size),
+    saved: makeIds('saved', size),
     searches: makeSearches(size),
     timeline: makeTimeline(size * 2),
     viewTimestamps: makeIds('viewed', size * 2).reduce<Record<string, string>>((acc, id, idx) => {
@@ -47,6 +48,7 @@ describe('applyHistoryRetention', () => {
     expect(retained.liked).toHaveLength(400);
     expect(retained.disliked).toHaveLength(400);
     expect(retained.reported).toHaveLength(400);
+    expect(retained.saved).toHaveLength(400);
     expect(retained.searches).toHaveLength(250);
     expect(retained.timeline).toHaveLength(600);
     // timestamps older than 30 days should be pruned
@@ -60,6 +62,7 @@ describe('applyHistoryRetention', () => {
     const snapshot = makeSnapshot(100);
     const retained = applyHistoryRetention(snapshot, 'unlimited');
     expect(retained.viewed).toHaveLength(snapshot.viewed.length);
+    expect(retained.saved).toHaveLength(snapshot.saved.length);
     expect(retained.timeline).toHaveLength(snapshot.timeline.length);
     expect(Object.keys(retained.viewTimestamps).length).toBe(Object.keys(snapshot.viewTimestamps).length);
   });

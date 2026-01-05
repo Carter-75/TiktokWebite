@@ -22,8 +22,19 @@ export async function POST(request: NextRequest) {
     throw error;
   }
 
-  const json = await request.json();
-  const parsed = schema.safeParse(json);
+  const rawBody = await request.text();
+  if (!rawBody) {
+    return NextResponse.json({ ok: true, skipped: true });
+  }
+
+  let jsonPayload: unknown;
+  try {
+    jsonPayload = JSON.parse(rawBody);
+  } catch {
+    return NextResponse.json({ ok: false, error: 'Invalid JSON payload' }, { status: 400 });
+  }
+
+  const parsed = schema.safeParse(jsonPayload);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: parsed.error.message }, { status: 400 });
   }

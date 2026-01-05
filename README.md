@@ -1,20 +1,24 @@
 # Product Pulse
 
-Product Pulse is an AI-powered, TikTok-style shopping feed. Each scroll reveals one product page that is generated (or scraped) on demand, preloaded ahead of time, and tuned by your interactions.
+Product Pulse is an AI-powered, TikTok-style shopping feed. Each scroll now reveals a head-to-head matchup between two products—both generated (or scraped) on demand, preloaded ahead of time, and tuned by your interactions.
 
 ## Feature Highlights
-- **Infinite feed**: Maintains a background queue of three pre-generated product spotlights.
+- **Dual compare lane**: Always keeps two equally weighted products on screen so you can like/dislike/save in context.
+- **Infinite feed**: Maintains a background queue of pre-generated spotlights to instantly refill either slot.
 - **Interaction learning**: Every like/dislike/report adjusts tag weights and future recommendations.
+- **Account-bound saves**: Sign in to keep a locker of saved drops; guests still browse but nothing is persisted.
 - **Guest + Google auth**: Runs in guest mode by default, seamlessly upgrades to Google OAuth when credentials are provided.
 - **Local-first preferences**: History, tag weights, and cached products live in localStorage (mirrored to secure cookies as needed).
 - **Monetization ready**: Sticky footer banner, inline ad slots, and desktop sidebar placements reserve space to keep CLS stable.
+- **Live retailer enrichment (mandatory)**: Each AI card is validated against real US storefront links (via Google Shopping/SerpAPI) so every CTA lands on an actual product page; requests fail when no verifiable listing exists.
+- **On-page diagnostics**: A built-in panel mirrors the queue/auth snapshot so you can copy/paste state whenever `npm run launch` surfaces an issue.
 - **Secure backend surface**: Hardened API routes for AI generation, compliant scraping, and authentication with OWASP-aligned validation.
 - **History vault + privacy controls**: Unlimited interaction/search history with export, retention tuning, and one-click data erasure.
 
 ## Stack Overview
 - **Frontend**: Next.js 14 (App Router), React 18, Bulma tokens, CSS Modules + custom design system.
 - **Backend**: Next.js route handlers (`/api/generate`, `/api/scrape`, `/auth/*`).
-- **AI Layer**: Pluggable HTTP client (`AI_PROVIDER_URL`, `AI_PROVIDER_KEY`) with JSON schema enforcement and static dataset fallback.
+- **AI Layer**: Pluggable HTTP client (`AI_PROVIDER_URL`, `AI_PROVIDER_KEY`) with JSON schema enforcement and mandatory live retailer verification (no static fallback).
 - **Testing**: Vitest unit tests covering feed logic (extendable for API + e2e scenarios).
 
 ## Quick Start
@@ -49,9 +53,11 @@ NEXT_PUBLIC_ADMOB_FOOTER_SLOT=<admob-slot-id-footer>
 NEXT_PUBLIC_ADMOB_INLINE_SLOT=<admob-slot-id-inline>
 NEXT_PUBLIC_ADMOB_SIDEBAR_SLOT=<admob-slot-id-sidebar>
 NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id-if-using-one-placement>
+SERPAPI_KEY=<[! required] SerpAPI key for Google Shopping lookups>
+RETAIL_LOOKUP_LIMIT=2 # optional throttle; must be >= requested products
 ```
 
-> Until these values exist the app automatically runs in guest mode, uses signed mock sessions, and serves curated static product data.
+> Until all required values (including `SERPAPI_KEY`) exist the app automatically remains in guest mode and API calls will fail rather than serving curated fallback data.
 
 ## Scripts
 - `npm run dev` – Next.js dev server with Turbopack.
@@ -66,7 +72,7 @@ NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id-if-using-one-placement>
 ## API Surface
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/api/generate` | POST | Validate preferences/history and return a product payload (AI or fallback). |
+| `/api/generate` | POST | Validate preferences/history and return a product payload (AI-only; fails fast when live providers are unavailable). |
 | `/api/scrape` | POST | Server-side scrape of allowlisted URLs with robots.txt checks. |
 | `/auth/google` | GET | Initiate Google OAuth (returns 501 until creds exist). |
 | `/auth/google/callback` | GET | Handle OAuth response, persist signed cookie session. |

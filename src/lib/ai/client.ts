@@ -1,39 +1,25 @@
 import crypto from 'node:crypto';
 
 import { recordMetric } from '@/lib/metrics/collector';
-import {
-  ProductGenerationRequest,
-  ProductGenerationResponse,
-  ProductContent,
-} from '@/types/product';
+import { ProductGenerationRequest, ProductGenerationResponse, ProductContent } from '@/types/product';
 import { buildProductPrompt, validateProductResponse } from '@/lib/ai/prompts';
-import { staticProducts } from '@/lib/data/staticProducts';
+import { enrichProductsWithRetailers } from '@/lib/ai/linkEnricher';
 
 const memoryCache = new Map<string, ProductGenerationResponse>();
 
 const hashKey = (input: object) =>
   crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
-const pickFallbackProduct = (request: ProductGenerationRequest) => {
-  const preferredTags = new Set(request.preferences.likedTags);
-  const disliked = new Set(request.preferences.dislikedTags);
-
-  const ranked = staticProducts
-    .map((product) => {
-      const productTags = product.tags.map((t) => t.id);
-      const affinity = productTags.reduce((score, tag) => {
-        if (disliked.has(tag)) return score - 1;
-        if (preferredTags.has(tag)) return score + 1.5;
-        return score + 0.1;
-      }, 0);
-      return { affinity, product };
-    })
-    .sort((a, b) => b.affinity - a.affinity);
-
-  return ranked[0]?.product ?? staticProducts[0];
-};
-
 const clampText = (value: string, max = 320) => (value.length > max ? `${value.slice(0, max)}…` : value);
+
+const deriveMediaUrl = (product: ProductContent) => {
+  if (product.mediaUrl?.startsWith('http')) {
+    return product.mediaUrl;
+  }
+  const keywords = [product.title, ...product.tags.map((tag) => tag.label)].filter(Boolean).join(',');
+  const query = encodeURIComponent(keywords || 'modern product gadget');
+  return `https://source.unsplash.com/featured/900x600?${query}`;
+};
 
 const sanitizeProduct = (product: ProductContent): ProductContent => ({
   ...product,
@@ -45,82 +31,84 @@ const sanitizeProduct = (product: ProductContent): ProductContent => ({
   tags: product.tags.slice(0, 8),
   buyLinks: product.buyLinks.slice(0, 4),
   noveltyScore: Number(Math.min(1, Math.max(0, product.noveltyScore)).toFixed(2)),
+  mediaUrl: deriveMediaUrl(product),
 });
+
+const clampResultCount = (value?: number) => Math.min(4, Math.max(2, value ?? 2));
 
 export const requestProductPage = async (
   request: ProductGenerationRequest,
-  opts?: { forceNovelty?: boolean; preferStatic?: boolean }
+  opts?: { forceNovelty?: boolean }
 ): Promise<{ response: ProductGenerationResponse; cacheHit: boolean }> => {
+  const desiredResults = clampResultCount(request.resultsRequested);
+  const normalizedRequest: ProductGenerationRequest = {
+    ...request,
+    resultsRequested: desiredResults,
+  };
+
   const cacheKey = hashKey({
-    preferences: request.preferences,
-    searchTerms: request.searchTerms,
-    lastViewed: request.lastViewed.map((p) => p.id),
-    preferStatic: opts?.preferStatic ?? false,
+    preferences: normalizedRequest.preferences,
+    searchTerms: normalizedRequest.searchTerms,
+    lastViewed: normalizedRequest.lastViewed.map((p) => p.id),
+    resultsRequested: desiredResults,
   });
 
   if (!opts?.forceNovelty && memoryCache.has(cacheKey)) {
-    recordMetric('ai.cache_hit');
+    recordMetric('ai.cache_hit', { count: desiredResults });
     return { response: memoryCache.get(cacheKey)!, cacheHit: true };
   }
 
   const providerUrl = process.env.AI_PROVIDER_URL;
   const providerKey = process.env.AI_PROVIDER_KEY;
-  const hasProvider = Boolean(providerUrl && providerKey);
-  const useProvider = hasProvider && !opts?.preferStatic;
-
-  if (useProvider && providerUrl && providerKey) {
-    const { system, user, schema } = buildProductPrompt(request);
-    try {
-      recordMetric('ai.call_attempt', { provider: 'remote' });
-      const raw = await fetch(providerUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${providerKey}`,
-        },
-        body: JSON.stringify({
-          model: process.env.AI_PROVIDER_MODEL ?? 'gpt-4o-mini',
-          system,
-          input: user,
-          response_format: { type: 'json_schema', json_schema: schema },
-        }),
-        cache: 'no-store',
-      });
-
-      if (!raw.ok) {
-        throw new Error(`AI provider error: ${raw.status}`);
-      }
-      const json = await raw.json();
-      const validated = validateProductResponse(json);
-      const parsed: ProductGenerationResponse = {
-        product: sanitizeProduct(validated.product),
-        debug: validated.debug,
-      };
-      memoryCache.set(cacheKey, parsed);
-      recordMetric('ai.call_success', { provider: 'remote' });
-      return { response: parsed, cacheHit: false };
-    } catch (err) {
-      console.warn('[ai] provider failed, falling back to static dataset', err);
-      recordMetric('ai.call_fallback', { reason: 'provider_error' });
-    }
-  } else {
-    recordMetric('ai.call_skipped', {
-      reason: opts?.preferStatic ? 'static_mode' : 'provider_missing',
-    });
+  if (!providerUrl || !providerKey) {
+    recordMetric('ai.call_skipped', { reason: 'provider_missing' });
+    throw new Error('AI provider credentials missing');
   }
 
-  const fallback = pickFallbackProduct(request);
-  const response: ProductGenerationResponse = {
-    product: {
-      ...sanitizeProduct(fallback),
-      id: `${fallback.id}-${hashKey({ cacheKey, ts: Date.now() }).slice(0, 6)}`,
-      generatedAt: new Date().toISOString(),
-      source: hasProvider ? 'hybrid' : 'ai',
-    },
-  };
-  recordMetric('ai.fallback_served', { preferStatic: opts?.preferStatic });
-  memoryCache.set(cacheKey, response);
-  return { response, cacheHit: false };
+  const { system, user, schema } = buildProductPrompt(normalizedRequest);
+  try {
+    recordMetric('ai.call_attempt', { provider: 'remote', count: desiredResults });
+    const raw = await fetch(providerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${providerKey}`,
+      },
+      body: JSON.stringify({
+        model: process.env.AI_PROVIDER_MODEL ?? 'gpt-4o-mini',
+        system,
+        input: user,
+        response_format: { type: 'json_schema', json_schema: schema },
+      }),
+      cache: 'no-store',
+    });
+
+    if (!raw.ok) {
+      throw new Error(`AI provider error: ${raw.status}`);
+    }
+    const json = await raw.json();
+    const validated = validateProductResponse(json);
+    const sanitizedProducts = validated.products.slice(0, desiredResults).map(sanitizeProduct);
+    const enrichedProducts = await enrichProductsWithRetailers(sanitizedProducts);
+
+    if (enrichedProducts.length < desiredResults) {
+      throw new Error('AI payload missing product entries');
+    }
+
+    const parsed: ProductGenerationResponse = {
+      products: enrichedProducts,
+      debug: validated.debug,
+    };
+    memoryCache.set(cacheKey, parsed);
+    recordMetric('ai.call_success', { provider: 'remote', count: enrichedProducts.length });
+    return { response: parsed, cacheHit: false };
+  } catch (error) {
+    const reason = (error as Error)?.message ?? 'unknown';
+    recordMetric('ai.call_failed', {
+      reason,
+    });
+    throw error;
+  }
 };
 
 export const clearProductCache = () => memoryCache.clear();
