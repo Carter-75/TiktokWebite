@@ -155,7 +155,7 @@
 - [x] Ads render in all placements without CLS.
 - [x] OAuth guest fallback works; Google login activates once creds supplied [!].
 - [x] README documents setup + env vars.
-- [ ] CI automation for lint/test/build pending.
+- [x] CI automation for lint/test/build via `.github/workflows/ci.yml` running `npm run diagnostics` on push/PR.
 
 ## Required User Actions
 - [!] Provide Google OAuth Client ID/Secret via `.env.local` to enable real login.

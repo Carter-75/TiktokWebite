@@ -18,7 +18,7 @@ const ProductCard = ({ product }: Props) => (
     </section>
 
     <section>
-      <h3>Why it's useful</h3>
+      <h3>Why it&apos;s useful</h3>
       <p>{product.whyUseful}</p>
     </section>
 

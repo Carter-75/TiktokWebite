@@ -26,6 +26,12 @@ npm run dev
 
 Visit http://localhost:3000 to start exploring the feed in guest mode.
 
+Want a single "do everything" command? Run `npm run launch`. By default it wipes caches, reinstalls dependencies, installs Playwright browsers, lints, runs unit + e2e suites, builds, emits `npx next info`, and finally boots the dev server with automatic browser launch and verbose logging. Add `--diagnostics` to stop after the checks (used in CI) or `--dev-only` to skip the heavy preflight and just open the dev server + browser without touching dependencies.
+
+## Backend Runtime
+
+The API surface lives inside Next.js route handlers located under `src/app/api/*` and `src/app/auth/*`. Running `npm run dev` (or the full pipeline via `npm run launch`) boots the React UI *and* these backend handlers in a single Node process, so there is no separate server to manage.
+
 ### Required Environment Variables
 Create a `.env.local` with the following values when you are ready to enable live auth/AI:
 
@@ -44,12 +50,13 @@ ADS_ENDPOINT=<optional ad creative feed>
 
 ## Scripts
 - `npm run dev` – Next.js dev server with Turbopack.
+- `npm run launch` – Consolidated workflow. Default mode performs reset → install → lint → unit → e2e → build → `npx next info`, then starts the dev server and opens your browser. Pass `--diagnostics` to stop after the checks or `--dev-only` to skip straight to the dev server.
 - `npm run build` – Production build.
 - `npm run start` – Start production server.
 - `npm run lint` – ESLint via `eslint-config-next`.
 - `npm run test` – Vitest unit tests.
 - `npm run test:e2e` – Playwright guest smoke with embedded Axe accessibility scan.
-- `npm run diagnostics` – Full reset + lint/test/build/e2e + optional `vercel build` and `next info` logs.
+- `npm run diagnostics` – Alias for `npm run launch -- --diagnostics`.
 
 ## API Surface
 | Endpoint | Method | Purpose |
@@ -78,6 +85,10 @@ npm run test:e2e
 
 The first command covers unit/integration suites (Vitest). The second spins up a temporary dev server, runs the Playwright guest smoke, and fails on any Axe WCAG A/AA violations (contrast violations skipped until final palette lock-in).
 
+## Continuous Integration & Diagnostics
+- `npm run diagnostics` (alias for `npm run launch -- --diagnostics`) wipes caches, installs dependencies, runs lint/unit/e2e/production build, optionally executes `vercel build --prod`, and finishes with `npx next info` so you get a single flood of debug data.
+- The GitHub Actions workflow at `.github/workflows/ci.yml` runs that diagnostics mode on every push and pull request, uploading Playwright traces and `.next/trace` artifacts whenever something fails.
+
 ## Security & Compliance
 - Strict CSP/COOP/COEP headers configured in `next.config.mjs`.
 - OAuth state stored server-side in HttpOnly cookies with short TTL.
@@ -90,7 +101,7 @@ The first command covers unit/integration suites (Vitest). The second spins up a
 
 ### How Vercel Handles the Backend
 - The `/api/*` and `/auth/*` route handlers automatically compile into Vercel Serverless Functions (or Edge Functions when marked `runtime = 'edge'`). No extra backend service is required—deploying the Next.js app carries the API layer with it.
-- The `npm run diagnostics` script now includes an optional `vercel build --prod` step (if the Vercel CLI is installed) so you can confirm serverless bundling locally before pushing.
+- The diagnostics mode (`npm run launch -- --diagnostics`) includes an optional `vercel build --prod` step (if the Vercel CLI is installed) so you can confirm serverless bundling locally before pushing.
 - When running on other hosts, `npm run build && npm run start` exposes the same backend logic via Next.js’ Node runtime.
 
 For a detailed implementation roadmap, see [TODO.md](TODO.md).

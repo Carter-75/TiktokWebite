@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
+    "launch": "node ./scripts/run-all.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "diagnostics": "node ./scripts/full-diagnostics.mjs"
+    "diagnostics": "node ./scripts/run-all.mjs --diagnostics"
   },
   "keywords": [],
   "author": "",
