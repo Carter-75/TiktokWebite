@@ -55,6 +55,8 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const offlineToastShown = useRef(false);
   const rateLimitResetRef = useRef(0);
   const rateLimitedRef = useRef(false);
+  const fetchInFlightRef = useRef(false);
+  const pendingRateLimitFallbackRef = useRef<ProductContent | null>(null);
   const { pushToast } = useToast();
 
   useEffect(() => {
@@ -111,6 +113,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
           : Math.max(retryDelayRef.current, INITIAL_RETRY_DELAY);
         rateLimitResetRef.current = Date.now() + retryAfterMs;
         rateLimitedRef.current = true;
+        pendingRateLimitFallbackRef.current = makeFallbackProduct();
         setLastError('Rate limit hit');
         setStatus('retrying');
         const waitSeconds = Math.ceil(retryAfterMs / 1000);
@@ -162,6 +165,18 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       }, retryDelayRef.current);
     };
 
+    const pushPendingRateLimitFallback = () => {
+      if (!pendingRateLimitFallbackRef.current) return false;
+      const fallback = pendingRateLimitFallbackRef.current;
+      pendingRateLimitFallbackRef.current = null;
+      setQueue((prev) => {
+        const updated = [...prev, fallback];
+        persistPreloadQueue(updated);
+        return updated;
+      });
+      return true;
+    };
+
     if (automationEnabled) {
       if (queueRef.current.length === 0) {
         const fallback = makeFallbackProduct();
@@ -173,7 +188,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       return;
     }
 
-    if (loading) {
+    if (fetchInFlightRef.current) {
       return;
     }
 
@@ -184,6 +199,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
     const now = Date.now();
     if (rateLimitedRef.current && rateLimitResetRef.current > now) {
+      pushPendingRateLimitFallback();
       setStatus('retrying');
       scheduleRateLimitRetry(rateLimitResetRef.current - now);
       return;
@@ -191,25 +207,33 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
     rateLimitedRef.current = false;
     rateLimitResetRef.current = 0;
-    const next = await fetchNext();
-    if (!next) {
-      if (rateLimitedRef.current && rateLimitResetRef.current > Date.now()) {
-        setStatus('retrying');
-        scheduleRateLimitRetry(rateLimitResetRef.current - Date.now());
+    fetchInFlightRef.current = true;
+    try {
+      const next = await fetchNext();
+      if (!next) {
+        const insertedFallback = pushPendingRateLimitFallback();
+        if (rateLimitedRef.current && rateLimitResetRef.current > Date.now()) {
+          setStatus('retrying');
+          scheduleRateLimitRetry(rateLimitResetRef.current - Date.now());
+          return;
+        }
+        if (!insertedFallback) {
+          setStatus('retrying');
+        }
+        scheduleStandardRetry();
         return;
       }
-      setStatus('retrying');
-      scheduleStandardRetry();
-      return;
+      retryDelayRef.current = INITIAL_RETRY_DELAY;
+      setStatus('idle');
+      setQueue((prev) => {
+        const updated = [...prev, next];
+        persistPreloadQueue(updated);
+        return updated;
+      });
+    } finally {
+      fetchInFlightRef.current = false;
     }
-    retryDelayRef.current = INITIAL_RETRY_DELAY;
-    setStatus('idle');
-    setQueue((prev) => {
-      const updated = [...prev, next];
-      persistPreloadQueue(updated);
-      return updated;
-    });
-  }, [fetchNext, automationEnabled, loading]);
+  }, [fetchNext, automationEnabled]);
 
   useEffect(() => {
     if (!hasWindow()) return undefined;
@@ -233,6 +257,14 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
   useEffect(() => {
     retryDelayRef.current = INITIAL_RETRY_DELAY;
+    pendingRateLimitFallbackRef.current = null;
+    rateLimitedRef.current = false;
+    rateLimitResetRef.current = 0;
+    fetchInFlightRef.current = false;
+    if (hasWindow()) {
+      window.clearTimeout(retryTimerRef.current ?? undefined);
+      retryTimerRef.current = null;
+    }
 
     if (!automationEnabled) {
       setQueue([]);

@@ -1,7 +1,31 @@
 import { NextRequest } from 'next/server';
 
-const getWindowMs = () => Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
-const getMaxRequests = () => Number(process.env.RATE_LIMIT_MAX ?? 45);
+const parsePositiveInt = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed === 0) return 0;
+  if (parsed <= 0) return null;
+  return parsed;
+};
+
+const getWindowMs = () => {
+  const override = parsePositiveInt(process.env.RATE_LIMIT_WINDOW_MS);
+  if (override) return override;
+  if (process.env.NODE_ENV === 'development') {
+    return parsePositiveInt(process.env.RATE_LIMIT_WINDOW_MS_DEV) ?? 30_000;
+  }
+  return 60_000;
+};
+
+const getMaxRequests = () => {
+  const override = parsePositiveInt(process.env.RATE_LIMIT_MAX);
+  if (override) return override;
+  if (process.env.NODE_ENV === 'development') {
+    return parsePositiveInt(process.env.RATE_LIMIT_MAX_DEV) ?? 250;
+  }
+  return 45;
+};
 
 const buckets = new Map<string, { count: number; reset: number }>();
 

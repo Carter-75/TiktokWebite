@@ -43,7 +43,12 @@ NEXT_PUBLIC_BASE_URL=http://localhost:3000
 AI_PROVIDER_URL=<[! required for live AI] JSON-only endpoint>
 AI_PROVIDER_KEY=<api key>
 AI_PROVIDER_MODEL=gpt-4o-mini
-ADS_ENDPOINT=<optional ad creative feed>
+NEXT_PUBLIC_ADMOB_CLIENT_ID=<ca-pub-xxxxxxxxxxxxxxxx>
+# Optional: either set individual slot ids or fall back to the default slot below
+NEXT_PUBLIC_ADMOB_FOOTER_SLOT=<admob-slot-id-footer>
+NEXT_PUBLIC_ADMOB_INLINE_SLOT=<admob-slot-id-inline>
+NEXT_PUBLIC_ADMOB_SIDEBAR_SLOT=<admob-slot-id-sidebar>
+NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id-if-using-one-placement>
 ```
 
 > Until these values exist the app automatically runs in guest mode, uses signed mock sessions, and serves curated static product data.

@@ -121,7 +121,10 @@ const logEnvironment = () => {
     'AI_PROVIDER_URL',
     'AI_PROVIDER_KEY',
     'AI_PROVIDER_MODEL',
-    'ADS_ENDPOINT',
+    'NEXT_PUBLIC_ADMOB_CLIENT_ID',
+    'NEXT_PUBLIC_ADMOB_FOOTER_SLOT',
+    'NEXT_PUBLIC_ADMOB_INLINE_SLOT',
+    'NEXT_PUBLIC_ADMOB_SIDEBAR_SLOT',
   ];
   log('Environment status:');
   requiredEnv.forEach((key) => {

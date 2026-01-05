@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import AdMobSlot from '@/components/AdMobSlot';
+import { getAdMobSlot } from '@/lib/ads/loader';
 import { trackAdImpression } from '@/lib/metrics/client';
+
+const sidebarSlotId = getAdMobSlot('sidebar');
 
 const SidebarAd = () => {
   const [visible, setVisible] = useState(false);
+  const containerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return () => undefined;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -18,8 +25,7 @@ const SidebarAd = () => {
       },
       { rootMargin: '0px', threshold: 0.1 }
     );
-    const el = document.querySelector('.sidebar-ad');
-    if (el) observer.observe(el);
+    observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
@@ -29,17 +35,21 @@ const SidebarAd = () => {
     }
   }, [visible]);
 
-  if (!visible) {
-    return <aside className="sidebar-ad placeholder" aria-hidden />;
-  }
-
   return (
-    <aside className="sidebar-ad" role="complementary">
-      <strong>Partner Spotlight</strong>
-      <p>Brands can showcase launches here. Delivered with zero third-party cookies.</p>
-      <a className="button is-small" href="https://example.com/ads" target="_blank" rel="noreferrer">
-        Learn more
-      </a>
+    <aside
+      className={`sidebar-ad${visible ? '' : ' placeholder'}`}
+      aria-hidden={!visible}
+      ref={containerRef}
+      role="complementary"
+    >
+      {visible && (
+        <AdMobSlot
+          slotId={sidebarSlotId}
+          className="sidebar-ad-slot"
+          adLabel="Sponsored"
+          style={{ display: 'block', minHeight: '250px' }}
+        />
+      )}
     </aside>
   );
 };

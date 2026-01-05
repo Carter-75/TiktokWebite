@@ -1,28 +1,28 @@
-import { Suspense } from 'react';
+'use client';
 
-import { getAdCreative } from '@/lib/ads/loader';
-import { recordMetric } from '@/lib/metrics/collector';
+import { useEffect } from 'react';
 
-const AdBannerInner = async () => {
-  const creative = await getAdCreative();
-  recordMetric('ad_impression', { placement: 'footer', source: 'ssr' });
+import AdMobSlot from '@/components/AdMobSlot';
+import { getAdMobSlot } from '@/lib/ads/loader';
+import { trackAdImpression } from '@/lib/metrics/client';
+
+const footerSlotId = getAdMobSlot('footer');
+
+const AdBanner = () => {
+  useEffect(() => {
+    trackAdImpression('footer');
+  }, []);
+
   return (
-    <div className="ad-banner" role="complementary">
-      <div>
-        <strong>{creative.headline}</strong>
-        <p>{creative.body}</p>
-      </div>
-      <a className="button is-primary" href={creative.url} target="_blank" rel="noreferrer">
-        {creative.cta}
-      </a>
+    <div className="ad-banner" role="complementary" aria-label="Sponsored">
+      <AdMobSlot
+        slotId={footerSlotId}
+        adLabel="Sponsored"
+        className="admob-footer"
+        style={{ display: 'block', minHeight: '120px' }}
+      />
     </div>
   );
 };
-
-const AdBanner = () => (
-  <Suspense fallback={<div className="ad-banner placeholder" />}>
-    <AdBannerInner />
-  </Suspense>
-);
 
 export default AdBanner;

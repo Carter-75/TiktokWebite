@@ -2,7 +2,11 @@
 
 import { useEffect } from 'react';
 
+import AdMobSlot from '@/components/AdMobSlot';
+import { getAdMobSlot } from '@/lib/ads/loader';
 import { trackAdImpression } from '@/lib/metrics/client';
+
+const inlineSlotId = getAdMobSlot('inline');
 
 const InlineAd = () => {
   useEffect(() => {
@@ -10,12 +14,12 @@ const InlineAd = () => {
   }, []);
 
   return (
-    <div className="inline-ad" role="complementary" aria-label="Sponsored">
-      <p>Sponsored suggestion · Upgrade your workspace with ergonomic essentials curated weekly.</p>
-      <a href="https://example.com/partner" target="_blank" rel="noreferrer">
-        Explore partner deals
-      </a>
-    </div>
+    <AdMobSlot
+      slotId={inlineSlotId}
+      className="inline-ad"
+      adLabel="Sponsored"
+      style={{ display: 'block', minHeight: '90px' }}
+    />
   );
 };
 
