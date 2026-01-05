@@ -7,6 +7,7 @@ export type FeedErrorCardProps = {
   busy?: boolean;
   isOffline?: boolean;
   showDiagnostics?: boolean;
+  showGuidance?: boolean;
 };
 
 const onlineTips = [
@@ -28,6 +29,7 @@ const FeedErrorCard: React.FC<FeedErrorCardProps> = ({
   busy = false,
   isOffline = false,
   showDiagnostics = true,
+  showGuidance = true,
 }) => {
   const tips = isOffline ? offlineTips : onlineTips;
   return (
@@ -38,11 +40,13 @@ const FeedErrorCard: React.FC<FeedErrorCardProps> = ({
       <div className="feed-error-card__body">
         <p className="feed-error-card__eyebrow">{isOffline ? 'Offline detected' : 'Issue detected'}</p>
         <h2>{message}</h2>
-        <ul>
-          {tips.map((tip) => (
-            <li key={tip}>{tip}</li>
-          ))}
-        </ul>
+        {showGuidance && (
+          <ul>
+            {tips.map((tip) => (
+              <li key={tip}>{tip}</li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="feed-error-card__actions">
         <button type="button" className="button is-primary" onClick={onRetry} disabled={busy}>

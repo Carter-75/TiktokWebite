@@ -18,6 +18,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { usePreloadQueue } from '@/hooks/usePreloadQueue';
 import { useToast } from '@/hooks/useToast';
 import { useUserSettings } from '@/hooks/useUserSettings';
+import { AdPlacement, hasAdMobConfig } from '@/lib/ads/loader';
 import { deriveSearchWeights, mergeSearchIntoPreferences, Interaction } from '@/lib/feed/engine';
 import { eraseAllLocalState } from '@/lib/preferences/storage';
 import { ProductContent } from '@/types/product';
@@ -73,6 +74,16 @@ const FeedShell = () => {
     { diagnosticsEnabled: isDiagnosticsUser }
   );
   const queueLength = queue.length;
+
+  useEffect(() => {
+    if (!isDiagnosticsUser) return;
+    const placements: AdPlacement[] = ['inline', 'sidebar', 'footer'];
+    placements.forEach((placement) => {
+      if (!hasAdMobConfig(placement)) {
+        console.info(`[ads] ${placement} slot disabled: missing AdMob env vars.`);
+      }
+    });
+  }, [isDiagnosticsUser]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -316,12 +327,12 @@ const FeedShell = () => {
   const canGoForward = future.length > 0 || Boolean(compareProduct) || queueLength > 0;
 
   const showLoader = !currentProduct;
+  const hasCachedDeck = Boolean(currentProduct) || past.length > 0 || queueLength > 0;
   const loaderStatus = queueStatus === 'retrying' ? 'Recovering product queue…' : 'Pairing contenders…';
-  const displayableError = isDiagnosticsUser
-    ? lastError
-    : lastError
-      ? 'We can’t fetch new drops right now. Hang tight—fresh contenders will return soon.'
-      : null;
+  const cachedFallbackMessage = 'Showing saved picks from this device while systems reset.';
+  const emptyFallbackMessage = 'Fresh contenders are lining up—hang tight.';
+  const genericErrorMessage = hasCachedDeck ? cachedFallbackMessage : emptyFallbackMessage;
+  const displayableError = isDiagnosticsUser ? lastError : lastError ? genericErrorMessage : null;
   const loaderDetail = displayableError
     ? displayableError
     : authStatus !== 'ready'
@@ -332,7 +343,7 @@ const FeedShell = () => {
   const blockingMessage = isOffline
     ? 'You appear to be offline. Reconnect to load fresh contenders.'
     : displayableError;
-  const showErrorCard = showLoader && !loading && Boolean(blockingMessage);
+  const showErrorCard = isDiagnosticsUser && showLoader && !loading && Boolean(blockingMessage);
 
   const diagnostics = useMemo(
     () => ({
@@ -496,6 +507,7 @@ const FeedShell = () => {
                 busy={queueStatus === 'loading'}
                 isOffline={isOffline}
                 showDiagnostics={isDiagnosticsUser}
+                showGuidance={isDiagnosticsUser}
               />
             ) : (
               <LoaderSkeleton status={loaderStatus} detail={loaderDetail} />
