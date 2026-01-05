@@ -9,7 +9,22 @@ export const SESSION_COOKIE = 'td_session';
 export const PREF_COOKIE = 'td_pref_mirror';
 export const STATE_COOKIE = 'td_oauth_state';
 
-const getSecret = () => process.env.SESSION_SECRET ?? 'development-secret';
+let cachedSecret: string | null = null;
+
+const getSecret = () => {
+  if (cachedSecret) return cachedSecret;
+  const secret = process.env.SESSION_SECRET;
+  if (secret) {
+    cachedSecret = secret;
+    return secret;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET must be configured in production environments.');
+  }
+  console.warn('[auth] SESSION_SECRET missing; using development fallback.');
+  cachedSecret = 'development-secret';
+  return cachedSecret;
+};
 
 const sign = (payload: string) =>
   crypto.createHmac('sha256', getSecret()).update(payload).digest('hex');

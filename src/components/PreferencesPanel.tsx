@@ -48,11 +48,35 @@ const formatRelativeTime = (iso: string) => {
   return `${days}d ago`;
 };
 
-const RETENTION_LABELS: Record<UserSettings['historyRetentionMode'], string> = {
-  balanced: 'Balanced · last ~400 interactions',
-  extended: 'Extended · last ~4k interactions',
-  unlimited: 'Unlimited · keep everything',
-};
+const RETENTION_OPTIONS: Array<{
+  value: UserSettings['historyRetentionMode'];
+  title: string;
+  badge: string;
+  summary: string;
+  detail: string;
+}> = [
+  {
+    value: 'balanced',
+    title: 'Balanced memory',
+    badge: 'Default',
+    summary: 'Tracks roughly the last 400 interactions.',
+    detail: 'Keeps the feed nimble while still giving the AI plenty of signal to learn from.',
+  },
+  {
+    value: 'extended',
+    title: 'Extended recall',
+    badge: 'Power user',
+    summary: 'Stores ~4,000 interactions and searches.',
+    detail: 'Ideal when you switch between multiple vibes and want the deck to remember nuance.',
+  },
+  {
+    value: 'unlimited',
+    title: 'Unlimited vault',
+    badge: 'Max retention',
+    summary: 'Keeps every interaction on this device.',
+    detail: 'Great for longitudinal testing—just note that clearing data is the only way to reset.',
+  },
+];
 
 const PreferencesPanel = ({
   open,
@@ -105,6 +129,10 @@ const PreferencesPanel = ({
     URL.revokeObjectURL(url);
   };
 
+  const identityMode = session?.mode ?? 'guest';
+  const identityName = session?.name ?? 'Guest explorer';
+  const identityEmail = session?.email ?? 'Not signed in';
+
   return (
     <div ref={panelRef} className={`preferences-panel ${open ? 'is-open' : ''}`} aria-hidden={!open}>
       <div className="preferences-panel__backdrop" onClick={onClose} />
@@ -124,20 +152,28 @@ const PreferencesPanel = ({
 
         <section>
           <h3>Current identity</h3>
-          <dl>
-            <div>
-              <dt>Mode</dt>
-              <dd>{session?.mode ?? 'guest'}</dd>
+          <div className="identity-card">
+            <div className="identity-card__header">
+              <div>
+                <p className="preferences-panel__eyebrow">Signed in as</p>
+                <strong>{identityName}</strong>
+                <span className="identity-card__email">{identityEmail}</span>
+              </div>
+              <span className={`identity-card__mode identity-card__mode--${identityMode}`}>
+                {identityMode === 'google' ? 'Google' : 'Guest'}
+              </span>
             </div>
-            <div>
-              <dt>User ID</dt>
-              <dd>{formatId(session?.userId)}</dd>
-            </div>
-            <div>
-              <dt>Session ID</dt>
-              <dd>{formatId(session?.sessionId)}</dd>
-            </div>
-          </dl>
+            <dl className="identity-card__meta">
+              <div>
+                <dt>User ID</dt>
+                <dd>{formatId(session?.userId)}</dd>
+              </div>
+              <div>
+                <dt>Session ID</dt>
+                <dd>{formatId(session?.sessionId)}</dd>
+              </div>
+            </dl>
+          </div>
         </section>
 
         <section>
@@ -164,17 +200,26 @@ const PreferencesPanel = ({
               <p>Share aggregate usage metrics to help tune AI cost controls.</p>
             </div>
           </label>
-          <label className="preferences-panel__select">
-            <span>History retention</span>
-            <select
-              value={settings.historyRetentionMode}
-              onChange={(event) => onUpdateSetting('historyRetentionMode', event.target.value as UserSettings['historyRetentionMode'])}
-            >
-              <option value="balanced">{RETENTION_LABELS.balanced}</option>
-              <option value="extended">{RETENTION_LABELS.extended}</option>
-              <option value="unlimited">{RETENTION_LABELS.unlimited}</option>
-            </select>
-          </label>
+          <div className="retention-grid" role="radiogroup" aria-label="History retention">
+            {RETENTION_OPTIONS.map((option) => {
+              const selected = settings.historyRetentionMode === option.value;
+              return (
+                <button
+                  type="button"
+                  key={option.value}
+                  className={`retention-card${selected ? ' is-active' : ''}`}
+                  onClick={() => onUpdateSetting('historyRetentionMode', option.value)}
+                  role="radio"
+                  aria-checked={selected}
+                >
+                  <p className="retention-card__badge">{option.badge}</p>
+                  <strong>{option.title}</strong>
+                  <span>{option.summary}</span>
+                  <p>{option.detail}</p>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         <section>

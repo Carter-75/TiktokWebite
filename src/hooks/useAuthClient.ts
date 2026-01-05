@@ -47,7 +47,10 @@ export const useAuthClient = () => {
 
   const logout = useCallback(async () => {
     if (automationEnabled) return;
-    await fetch('/auth/logout');
+    await fetch('/auth/logout', {
+      method: 'POST',
+      headers: { 'cache-control': 'no-store' },
+    });
     hydrate();
   }, [automationEnabled, hydrate]);
 

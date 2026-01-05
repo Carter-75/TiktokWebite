@@ -55,6 +55,22 @@ NEXT_PUBLIC_ADMOB_SIDEBAR_SLOT=<admob-slot-id-sidebar>
 NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id-if-using-one-placement>
 SERPAPI_KEY=<[! required] SerpAPI key for Google Shopping lookups>
 RETAIL_LOOKUP_LIMIT=2 # optional throttle; must be >= requested products
+
+Copy [.env.template](.env.template) to `.env.local` (or `.env.development.local`) and fill in your local-only values. All `.env*` files are already gitignored, so `git add .` will skip them unless they were previously committed—run `git rm --cached <file>` if you ever need to untrack one.
+
+### Managing secrets in Vercel
+1. Open Vercel → Project → **Settings → Environment Variables**.
+2. Add each key for every environment (`Production`, `Preview`, `Development`).
+3. Pull them locally with `vercel env pull .env.local` (requires the Vercel CLI) instead of copying secrets by hand.
+
+CLI alternative for scripting:
+
+```bash
+vercel env add GOOGLE_CLIENT_ID production
+vercel env add GOOGLE_CLIENT_ID preview
+vercel env add GOOGLE_CLIENT_ID development
+# repeat for the remaining variables
+```
 ```
 
 > Until all required values (including `SERPAPI_KEY`) exist the app automatically remains in guest mode and API calls will fail rather than serving curated fallback data.
@@ -77,7 +93,7 @@ RETAIL_LOOKUP_LIMIT=2 # optional throttle; must be >= requested products
 | `/auth/google` | GET | Initiate Google OAuth (returns 501 until creds exist). |
 | `/auth/google/callback` | GET | Handle OAuth response, persist signed cookie session. |
 | `/auth/me` | GET | Return current session (guest or Google). |
-| `/auth/logout` | GET | Clear cookies and fall back to guest mode. |
+| `/auth/logout` | POST (pref) / GET | Clear cookies, emit `Clear-Site-Data`, and fall back to guest mode. |
 | `/api/data/erase` | POST | Clear in-memory caches + rate limit buckets as part of the privacy reset flow. |
 
 ## Local Storage Schema
