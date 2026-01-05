@@ -8,6 +8,7 @@
   --accent-strong: #00f0ff;
   --danger: #ff6b6b;
   --glow: rgba(0, 240, 255, 0.35);
+  --ad-banner-height: 144px;
   color-scheme: dark;
 }
 
@@ -24,6 +25,7 @@ body {
   -webkit-font-smoothing: antialiased;
   position: relative;
   overflow-x: hidden;
+  scroll-padding-bottom: calc(var(--ad-banner-height, 144px) + 32px);
 }
 
 body::before {
@@ -52,13 +54,14 @@ body::after {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-bottom: 80px; /* space for sticky ad */
+  padding-bottom: calc(var(--ad-banner-height, 144px) + 48px); /* space for sticky ad */
 }
 
 .feed-shell {
   width: min(1200px, 100%);
   margin: 0 auto;
-  padding: clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 2.5rem) 4rem;
+  padding: clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 2.5rem)
+    calc(4rem + var(--ad-banner-height, 144px));
 }
 
 .feed-shell__header {
@@ -603,10 +606,11 @@ body::after {
   padding: 1rem 2rem;
   z-index: 20;
   backdrop-filter: blur(10px);
+  min-height: var(--ad-banner-height, 144px);
 }
 
 .ad-banner.placeholder {
-  height: 72px;
+  min-height: var(--ad-banner-height, 144px);
 }
 
 .skeleton {
@@ -632,7 +636,7 @@ body::after {
 
 .toast-stack {
   position: fixed;
-  bottom: 96px;
+  bottom: calc(var(--ad-banner-height, 144px) + 24px);
   right: 24px;
   display: flex;
   flex-direction: column;

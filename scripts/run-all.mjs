@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
 import { rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 process.env.NEXT_TELEMETRY_DISABLED = process.env.NEXT_TELEMETRY_DISABLED ?? '1';
+const originalEnvKeys = new Set(Object.keys(process.env));
 
 const root = process.cwd();
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -38,6 +39,99 @@ const cleanTargets = ['.next', '.turbo', 'coverage', 'dist', 'test-results', 'pl
 if (shouldPurgeNodeModules) {
   cleanTargets.push('node_modules');
 }
+
+const stripInlineComment = (line) => {
+  let inQuotes = false;
+  let quoteChar = '';
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if ((char === '"' || char === "'") && line[i - 1] !== '\\') {
+      if (!inQuotes) {
+        inQuotes = true;
+        quoteChar = char;
+      } else if (quoteChar === char) {
+        inQuotes = false;
+        quoteChar = '';
+      }
+    }
+    if (char === '#' && !inQuotes) {
+      return line.slice(0, i).trimEnd();
+    }
+  }
+  return line;
+};
+
+const parseEnvLine = (line) => {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#')) {
+    return null;
+  }
+  const withoutExport = trimmed.startsWith('export ')
+    ? trimmed.slice('export '.length).trim()
+    : trimmed;
+  if (!withoutExport) {
+    return null;
+  }
+  const sanitized = stripInlineComment(withoutExport);
+  const equalsIndex = sanitized.indexOf('=');
+  if (equalsIndex === -1) {
+    return null;
+  }
+  const key = sanitized.slice(0, equalsIndex).trim();
+  if (!key) {
+    return null;
+  }
+  let value = sanitized.slice(equalsIndex + 1).trim();
+  if (!value) {
+    value = '';
+  }
+  if (
+    (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+    (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+  ) {
+    value = value.slice(1, -1);
+  }
+  value = value.replace(/\\n/g, '\n');
+  return { key, value };
+};
+
+const hydrateEnvFiles = () => {
+  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  const envCandidates = ['.env'];
+  if (nodeEnv) {
+    envCandidates.push(`.env.${nodeEnv}`);
+  }
+  envCandidates.push('.env.local');
+  if (nodeEnv) {
+    envCandidates.push(`.env.${nodeEnv}.local`);
+  }
+  const seen = new Set();
+  envCandidates.forEach((fileName) => {
+    if (!fileName || seen.has(fileName)) {
+      return;
+    }
+    seen.add(fileName);
+    const targetPath = path.join(root, fileName);
+    if (!existsSync(targetPath)) {
+      return;
+    }
+    try {
+      const contents = readFileSync(targetPath, 'utf8');
+      contents.split(/\r?\n/).forEach((line) => {
+        const parsed = parseEnvLine(line);
+        if (!parsed) {
+          return;
+        }
+        if (originalEnvKeys.has(parsed.key)) {
+          return;
+        }
+        process.env[parsed.key] = parsed.value;
+      });
+    } catch (error) {
+      console.warn(`[launch] Unable to read ${fileName}: ${error.message}`);
+    }
+  });
+};
 
 const log = (message) => {
   console.log(`[launch] ${message}`);
@@ -302,6 +396,7 @@ const ensureDevDependencies = async () => {
 
 const main = async () => {
   ensureWorkspace();
+  hydrateEnvFiles();
   logEnvironment();
 
   if (mode === 'launch' || mode === 'diagnostics') {

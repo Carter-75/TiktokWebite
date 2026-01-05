@@ -5,10 +5,24 @@ const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
-    const scriptSrc = ["'self'"];
+    const scriptSrc = ["'self'", 'https://pagead2.googlesyndication.com', 'https://securepubads.g.doubleclick.net'];
     if (allowInlineScripts) {
       scriptSrc.push("'unsafe-inline'");
     }
+    const connectSrc = [
+      "'self'",
+      'https://oauth2.googleapis.com',
+      'https://accounts.google.com',
+      'https://pagead2.googlesyndication.com',
+      'https://googleads.g.doubleclick.net',
+      'https://securepubads.g.doubleclick.net',
+    ];
+    const frameSrc = [
+      "'self'",
+      'https://googleads.g.doubleclick.net',
+      'https://tpc.googlesyndication.com',
+      'https://pagead2.googlesyndication.com',
+    ];
 
     const securityHeaders = [
       {
@@ -18,8 +32,9 @@ const nextConfig = {
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
           "font-src 'self' https://fonts.gstatic.com",
           "img-src 'self' data: https://*",
-          "connect-src 'self' https://oauth2.googleapis.com https://accounts.google.com",
+          `connect-src ${connectSrc.join(' ')}`,
           `script-src ${scriptSrc.join(' ')}`,
+          `frame-src ${frameSrc.join(' ')}`,
           "frame-ancestors 'self' https://carter-portfolio.fyi",
           "base-uri 'self'",
           "form-action 'self' https://accounts.google.com",
