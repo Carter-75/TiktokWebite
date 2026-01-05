@@ -1,27 +1,96 @@
-# Next.js Project Setup
+# Product Pulse
 
-This is a template repository for a Next.js project.
+Product Pulse is an AI-powered, TikTok-style shopping feed. Each scroll reveals one product page that is generated (or scraped) on demand, preloaded ahead of time, and tuned by your interactions.
 
-It has been pre-configured with:
-- TypeScript
-- Bulma for styling
-- A basic file structure
+## Feature Highlights
+- **Infinite feed**: Maintains a background queue of three pre-generated product spotlights.
+- **Interaction learning**: Every like/dislike/report adjusts tag weights and future recommendations.
+- **Guest + Google auth**: Runs in guest mode by default, seamlessly upgrades to Google OAuth when credentials are provided.
+- **Local-first preferences**: History, tag weights, and cached products live in localStorage (mirrored to secure cookies as needed).
+- **Monetization ready**: Sticky footer banner, inline ad slots, and desktop sidebar placements reserve space to keep CLS stable.
+- **Secure backend surface**: Hardened API routes for AI generation, compliant scraping, and authentication with OWASP-aligned validation.
+- **History vault + privacy controls**: Unlimited interaction/search history with export, retention tuning, and one-click data erasure.
 
-## How to Use
+## Stack Overview
+- **Frontend**: Next.js 14 (App Router), React 18, Bulma tokens, CSS Modules + custom design system.
+- **Backend**: Next.js route handlers (`/api/generate`, `/api/scrape`, `/auth/*`).
+- **AI Layer**: Pluggable HTTP client (`AI_PROVIDER_URL`, `AI_PROVIDER_KEY`) with JSON schema enforcement and static dataset fallback.
+- **Testing**: Vitest unit tests covering feed logic (extendable for API + e2e scenarios).
 
-This repository is intended to be used with a setup script, such as `setup-next-project.ps1`.
-
-1. Run the script.
-2. It will clone this repository.
-3. It will install the dependencies.
-4. You will be ready to start developing.
-
-## Getting Started with Development
-
-Once the setup script is complete, you can run the development server:
+## Quick Start
 
 ```bash
+npm install
 npm run dev
 ```
 
-This will start the Next.js development server with Turbopack enabled for faster performance. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit http://localhost:3000 to start exploring the feed in guest mode.
+
+### Required Environment Variables
+Create a `.env.local` with the following values when you are ready to enable live auth/AI:
+
+```dotenv
+GOOGLE_CLIENT_ID=<[! required] OAuth client id>
+GOOGLE_CLIENT_SECRET=<[! required] OAuth secret>
+SESSION_SECRET=<random string for HMAC signing>
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+AI_PROVIDER_URL=<[! required for live AI] JSON-only endpoint>
+AI_PROVIDER_KEY=<api key>
+AI_PROVIDER_MODEL=gpt-4o-mini
+ADS_ENDPOINT=<optional ad creative feed>
+```
+
+> Until these values exist the app automatically runs in guest mode, uses signed mock sessions, and serves curated static product data.
+
+## Scripts
+- `npm run dev` – Next.js dev server with Turbopack.
+- `npm run build` – Production build.
+- `npm run start` – Start production server.
+- `npm run lint` – ESLint via `eslint-config-next`.
+- `npm run test` – Vitest unit tests.
+- `npm run test:e2e` – Playwright guest smoke with embedded Axe accessibility scan.
+- `npm run diagnostics` – Full reset + lint/test/build/e2e + optional `vercel build` and `next info` logs.
+
+## API Surface
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/generate` | POST | Validate preferences/history and return a product payload (AI or fallback). |
+| `/api/scrape` | POST | Server-side scrape of allowlisted URLs with robots.txt checks. |
+| `/auth/google` | GET | Initiate Google OAuth (returns 501 until creds exist). |
+| `/auth/google/callback` | GET | Handle OAuth response, persist signed cookie session. |
+| `/auth/me` | GET | Return current session (guest or Google). |
+| `/auth/logout` | GET | Clear cookies and fall back to guest mode. |
+| `/api/data/erase` | POST | Clear in-memory caches + rate limit buckets as part of the privacy reset flow. |
+
+## Local Storage Schema
+- `user_id`, `session_id` – Derived from secure cookies for hydration.
+- `preferences` – `{ likedTags, dislikedTags, blacklistedItems, tagWeights }` snapshot.
+- `history` – Full timeline of viewed/liked/disliked/reported IDs plus rich search entries and timestamps.
+- `cache.generated_pages` – Serialized product payload cache (extendable).
+- `preload_queue` – The three-product queue persisted across refreshes.
+
+## Testing
+
+```bash
+npm run test
+npm run test:e2e
+```
+
+The first command covers unit/integration suites (Vitest). The second spins up a temporary dev server, runs the Playwright guest smoke, and fails on any Axe WCAG A/AA violations (contrast violations skipped until final palette lock-in).
+
+## Security & Compliance
+- Strict CSP/COOP/COEP headers configured in `next.config.mjs`.
+- OAuth state stored server-side in HttpOnly cookies with short TTL.
+- `/api/scrape` blocks SSRF and respects `robots.txt` by default.
+- All dynamic inputs validated with Zod schemas before hitting the AI or scraper layers.
+
+## Deployment
+- Set required environment variables (above) in your hosting platform.
+- Use `npm run build && npm run start` or deploy via Vercel/GitHub Actions.
+
+### How Vercel Handles the Backend
+- The `/api/*` and `/auth/*` route handlers automatically compile into Vercel Serverless Functions (or Edge Functions when marked `runtime = 'edge'`). No extra backend service is required—deploying the Next.js app carries the API layer with it.
+- The `npm run diagnostics` script now includes an optional `vercel build --prod` step (if the Vercel CLI is installed) so you can confirm serverless bundling locally before pushing.
+- When running on other hosts, `npm run build && npm run start` exposes the same backend logic via Next.js’ Node runtime.
+
+For a detailed implementation roadmap, see [TODO.md](TODO.md).

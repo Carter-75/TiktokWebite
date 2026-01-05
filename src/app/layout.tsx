@@ -1,33 +1,32 @@
-import "./globals.css";
+import 'bulma/css/bulma.min.css';
+import './globals.css';
 
-import type { Metadata } from "next";
+import type { Metadata } from 'next';
+import { Space_Grotesk } from 'next/font/google';
+
+import AdBanner from '@/components/AdBanner';
+import AppProviders from '@/components/providers/AppProviders';
+
+const font = Space_Grotesk({ subsets: ['latin'], display: 'swap' });
 
 export const metadata: Metadata = {
-  title: "monopoly",
-  description: "A project named monopoly",
+  title: 'Product Pulse',
+  description: 'An adaptive, AI-powered shopping feed that learns from every swipe.',
+  metadataBase: new URL('https://product-pulse.local'),
+  icons: { icon: '/favicon.ico' },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        {/*
-          The following script tags are for Matter.js and Anime.js.
-          You can uncomment them and start using them in your project.
-          These are powerful animation libraries.
-          Feel free to remove them if you don't need them.
-        */}
-        {/* <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script> */}
-        {/* <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script> */}
-      </head>
-      <body>
-        {children}
+      <body className={font.className}>
+        <AppProviders>
+          <div className="app-shell">{children}</div>
+          <AdBanner />
+        </AppProviders>
       </body>
     </html>
   );
 }
+
 

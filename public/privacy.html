@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Product Pulse Privacy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: 'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #050013;
+        color: #f9fbff;
+        margin: 0;
+        padding: 2rem;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        background: rgba(15, 17, 36, 0.85);
+        padding: 2rem;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      h1,
+      h2,
+      h3 {
+        margin-top: 1.5rem;
+      }
+      ul {
+        padding-left: 1.25rem;
+      }
+      a {
+        color: #00f0ff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Product Pulse Privacy &amp; Data Handling</h1>
+      <p>
+        Product Pulse is a local-first experience. Personalization happens entirely in your browser, and the backend
+        only receives the minimal context required to generate the next product spotlight.
+      </p>
+
+      <h2>What we store locally</h2>
+      <ul>
+        <li><strong>Preferences:</strong> liked/disliked tags, blacklist entries, and the derived weight map.</li>
+        <li>
+          <strong>History vault:</strong> the complete timeline of viewed/liked/disliked/reported IDs along with detailed search entries,
+          retained according to your chosen setting (balanced, extended, or unlimited) until you wipe it.
+        </li>
+        <li><strong>Queue cache:</strong> the prefetched products so offline mode stays responsive.</li>
+        <li><strong>Session settings:</strong> toggles for reduced motion, telemetry consent, and static dataset mode.</li>
+      </ul>
+
+      <h2>What reaches the server</h2>
+      <ul>
+        <li>A hashed session identifier (guest by default, upgraded if Google OAuth is configured).</li>
+        <li>Aggregated preference weights and up to three recently viewed items to steer the AI prompt.</li>
+        <li>Anonymous telemetry events (ad impressions, API status) <em>only</em> when telemetry is enabled.</li>
+      </ul>
+
+      <h2>Security practices</h2>
+      <ul>
+        <li>All API inputs are validated with strict schemas before touching the AI or scraper layers.</li>
+        <li>Robots.txt is honored automatically for scraping, and common SSRF targets are blocked.</li>
+        <li>Session cookies are HttpOnly, Secure, and scoped to the application origin.</li>
+        <li>Rate limiting protects `/api/generate`, `/api/scrape`, and telemetry ingestion.</li>
+        <li>The `/api/data/erase` endpoint clears in-memory caches and rate-limit buckets whenever you trigger a privacy reset.</li>
+      </ul>
+
+      <h2>AI cost controls</h2>
+      <p>
+        Every generated product is cached per preference signature to avoid duplicate AI calls. You can also force the
+        experience into static/offline mode from the Control Center panel, guaranteeing zero external AI usage.
+      </p>
+
+      <h2>Data control</h2>
+      <p>
+        The Control Center includes a single "Erase everything" action that clears cookies, local history, cached queues, telemetry consent,
+        and server-side caches in one motion. Export your vault before running the reset if you want a copy for your records.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about data handling? Email <a href="mailto:privacy@productpulse.local">privacy@productpulse.local</a>.
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+import { NextResponse } from 'next/server';
+
+import { readSession } from '@/lib/auth/session';
+
+export async function GET() {
+  const session = readSession();
+  return NextResponse.json({ session });
+}

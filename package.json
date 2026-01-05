@@ -1,12 +1,15 @@
 {
-  "name": "monopoly",
+  "name": "TiktokWebsite",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "diagnostics": "node ./scripts/full-diagnostics.mjs"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +23,11 @@
     "matter-js": "0.19.0",
     "bulma": "1.0.1",
     "react-confetti": "^6.1.0",
-    "react-use": "^17.5.0"
+    "react-use": "^17.5.0",
+    "zod": "^3.23.8",
+    "cookie": "^0.6.0",
+    "nanoid": "^5.0.7",
+    "jsdom": "^24.0.0"
   },
   "devDependencies": {
     "typescript": "5",
@@ -31,6 +38,14 @@
     "eslint-config-next": "14.2.3",
     "postcss": "8",
     "@types/animejs": "3.1.12",
-    "@types/matter-js": "0.19.6"
+    "@types/matter-js": "0.19.6",
+    "vitest": "^1.2.1",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/cookie": "^0.6.0",
+    "@types/jsdom": "^21.1.5",
+    "@playwright/test": "^1.48.2",
+    "@axe-core/playwright": "^4.8.4"
   }
 }
