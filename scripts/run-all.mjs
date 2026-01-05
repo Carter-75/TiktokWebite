@@ -235,6 +235,16 @@ const step = async (label, action) => {
   log(`${label} complete in ${duration}s`);
 };
 
+const bootstrapEnvSecrets = async () => {
+  const scriptPath = path.join(root, 'scripts', 'bootstrap-env.mjs');
+  if (!existsSync(scriptPath)) {
+    return;
+  }
+  await step('Bootstrap env secrets', async () => {
+    await runCommand(process.execPath, [scriptPath]);
+  });
+};
+
 const cleanPaths = async (targets) => {
   await Promise.all(
     targets.map(async (target) => {
@@ -396,6 +406,7 @@ const ensureDevDependencies = async () => {
 
 const main = async () => {
   ensureWorkspace();
+  await bootstrapEnvSecrets();
   hydrateEnvFiles();
   logEnvironment();
 
