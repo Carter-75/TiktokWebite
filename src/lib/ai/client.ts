@@ -65,9 +65,10 @@ export const requestProductPage = async (
 
   const providerUrl = process.env.AI_PROVIDER_URL;
   const providerKey = process.env.AI_PROVIDER_KEY;
-  const useProvider = Boolean(providerUrl && providerKey && !opts?.preferStatic);
+  const hasProvider = Boolean(providerUrl && providerKey);
+  const useProvider = hasProvider && !opts?.preferStatic;
 
-  if (useProvider) {
+  if (useProvider && providerUrl && providerKey) {
     const { system, user, schema } = buildProductPrompt(request);
     try {
       recordMetric('ai.call_attempt', { provider: 'remote' });
@@ -114,7 +115,7 @@ export const requestProductPage = async (
       ...sanitizeProduct(fallback),
       id: `${fallback.id}-${hashKey({ cacheKey, ts: Date.now() }).slice(0, 6)}`,
       generatedAt: new Date().toISOString(),
-      source: providerUrl && providerKey ? 'hybrid' : 'ai',
+      source: hasProvider ? 'hybrid' : 'ai',
     },
   };
   recordMetric('ai.fallback_served', { preferStatic: opts?.preferStatic });

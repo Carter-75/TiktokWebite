@@ -26,7 +26,7 @@ npm run dev
 
 Visit http://localhost:3000 to start exploring the feed in guest mode.
 
-Want a single "do everything" command? Run `npm run launch`. By default it wipes caches, reinstalls dependencies, installs Playwright browsers, lints, runs unit + e2e suites, builds, emits `npx next info`, and finally boots the dev server with automatic browser launch and verbose logging. Add `--diagnostics` to stop after the checks (used in CI) or `--dev-only` to skip the heavy preflight and just open the dev server + browser without touching dependencies.
+Want a single "do everything" command? Run `npm run launch`. By default it wipes caches, reinstalls dependencies, installs Playwright browsers, lints, runs unit + e2e suites, builds, emits `npx next info`, and finally boots the dev server with automatic browser launch and verbose logging. Add `--diagnostics` to stop after the checks (used in CI), `--dev-only` to skip the heavy preflight, or `--purge-modules` (or env `RUN_ALL_PURGE_NODE_MODULES=true`) if you need to blow away `node_modules` before reinstalling.
 
 ## Backend Runtime
 
@@ -50,7 +50,7 @@ ADS_ENDPOINT=<optional ad creative feed>
 
 ## Scripts
 - `npm run dev` – Next.js dev server with Turbopack.
-- `npm run launch` – Consolidated workflow. Default mode performs reset → install → lint → unit → e2e → build → `npx next info`, then starts the dev server and opens your browser. Pass `--diagnostics` to stop after the checks or `--dev-only` to skip straight to the dev server.
+- `npm run launch` – Consolidated workflow. Default mode performs reset → install → lint → unit → e2e → build → `npx next info`, then starts the dev server and opens your browser. Pass `--diagnostics` to stop after the checks, `--dev-only` to skip straight to the dev server, or `--purge-modules` to force a clean dependency reinstall.
 - `npm run build` – Production build.
 - `npm run start` – Start production server.
 - `npm run lint` – ESLint via `eslint-config-next`.

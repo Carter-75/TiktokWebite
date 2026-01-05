@@ -12,30 +12,55 @@ const root = process.cwd();
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const vercelCmd = process.platform === 'win32' ? 'vercel.cmd' : 'vercel';
+const npmExecPath = process.env.npm_execpath;
+const npmRunnerCommand = npmExecPath ? process.execPath : npmCmd;
+const npmRunnerArgs = (args) => (npmExecPath ? [npmExecPath, ...args] : args);
 const host = process.env.DEV_HOST ?? '127.0.0.1';
 const port = Number.parseInt(process.env.DEV_PORT ?? '3000', 10);
 const protocol = process.env.DEV_PROTOCOL ?? 'http';
 const baseUrl = process.env.DEV_URL ?? `${protocol}://${host}:${port}`;
 const timeoutMs = Number.parseInt(process.env.DEV_PING_TIMEOUT ?? '60000', 10);
-const cleanTargets = ['.next', '.turbo', 'coverage', 'dist', 'test-results', 'playwright-report', 'node_modules'];
+const cliArgs = process.argv.slice(2);
+let npmOriginalArgs = [];
+try {
+  const parsed = JSON.parse(process.env.npm_config_argv ?? '{}');
+  if (Array.isArray(parsed?.original)) {
+    npmOriginalArgs = parsed.original;
+  }
+} catch {
+  npmOriginalArgs = [];
+}
+const npmLifecycleEvent = process.env.npm_lifecycle_event;
 const allowedModes = new Set(['launch', 'diagnostics', 'dev-only']);
+
+const shouldPurgeNodeModules = process.env.RUN_ALL_PURGE_NODE_MODULES === 'true' || cliArgs.includes('--purge-modules');
+const cleanTargets = ['.next', '.turbo', 'coverage', 'dist', 'test-results', 'playwright-report'];
+if (shouldPurgeNodeModules) {
+  cleanTargets.push('node_modules');
+}
 
 const log = (message) => {
   console.log(`[launch] ${message}`);
 };
 
 const resolveMode = () => {
-  const args = process.argv.slice(2);
   if (process.env.RUN_ALL_MODE) {
     return process.env.RUN_ALL_MODE;
   }
-  if (args.includes('--diagnostics')) {
+  if (npmLifecycleEvent === 'diagnostics') {
     return 'diagnostics';
   }
-  if (args.includes('--dev-only')) {
+  if (npmLifecycleEvent === 'dev-only') {
     return 'dev-only';
   }
-  const explicit = args.find((arg) => arg.startsWith('--mode='));
+  const argPool = [...cliArgs, ...npmOriginalArgs];
+  if (argPool.includes('--diagnostics')) {
+    return 'diagnostics';
+  }
+  if (argPool.includes('--dev-only')) {
+    return 'dev-only';
+  }
+  const explicit = cliArgs.find((arg) => arg.startsWith('--mode='));
   if (explicit) {
     return explicit.split('=')[1];
   }
@@ -54,8 +79,32 @@ const ensureWorkspace = () => {
   }
 };
 
+const runCommand = (command, args, extraEnv = {}) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: root,
+      stdio: 'inherit',
+      env: { ...process.env, ...extraEnv },
+      shell: false,
+    });
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+      }
+    });
+  });
+
+const runNpmSync = (args, options = {}) => spawnSync(npmRunnerCommand, npmRunnerArgs(args), options);
+const runNpm = (args, extraEnv = {}) => runCommand(npmRunnerCommand, npmRunnerArgs(args), extraEnv);
+const runNpx = (args, extraEnv = {}) =>
+  npmExecPath
+    ? runCommand(process.execPath, [npmExecPath, 'exec', ...args], extraEnv)
+    : runCommand(npxCmd, args, extraEnv);
+
 const logEnvironment = () => {
-  const npmVersion = spawnSync(npmCmd, ['--version'], { encoding: 'utf8' }).stdout?.trim() ?? 'unknown';
+  const npmVersion = runNpmSync(['--version'], { encoding: 'utf8' }).stdout?.trim() ?? 'unknown';
   log(`Mode: ${mode}`);
   log('Workspace diagnostics');
   log(`  • Workspace: ${root}`);
@@ -64,6 +113,7 @@ const logEnvironment = () => {
   log(`  • Memory: ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)} GB total`);
   log(`  • Node: ${process.version}`);
   log(`  • npm: ${npmVersion}`);
+  log(`  • Purge node_modules: ${shouldPurgeNodeModules ? 'yes' : 'no (use --purge-modules to enable)'}`);
   const requiredEnv = [
     'GOOGLE_CLIENT_ID',
     'GOOGLE_CLIENT_SECRET',
@@ -87,23 +137,6 @@ const step = async (label, action) => {
   const duration = ((Date.now() - start) / 1000).toFixed(2);
   log(`${label} complete in ${duration}s`);
 };
-
-const runCommand = (command, args, extraEnv = {}) =>
-  new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: root,
-      stdio: 'inherit',
-      env: { ...process.env, ...extraEnv },
-      shell: false,
-    });
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
-      }
-    });
-  });
 
 const cleanPaths = async (targets) => {
   await Promise.all(
@@ -166,8 +199,8 @@ const openBrowser = () => {
 const startDevServer = () => {
   log(`Starting dev server on ${baseUrl}`);
   const child = spawn(
-    npmCmd,
-    ['run', 'dev', '--', '--hostname', host, '--port', String(port)],
+    npmRunnerCommand,
+    npmRunnerArgs(['run', 'dev', '--', '--hostname', host, '--port', String(port)]),
     {
       cwd: root,
       stdio: 'inherit',
@@ -212,7 +245,7 @@ const runDiagnosticsPipeline = async () => {
   await step('Install dependencies', async () => {
     const hasLockfile = existsSync(path.join(root, 'package-lock.json'));
     const installer = hasLockfile ? 'ci' : 'install';
-    await runCommand(npmCmd, [installer]);
+    await runNpm([installer]);
   });
 
   await step('Install Playwright browsers', async () => {
@@ -220,23 +253,23 @@ const runDiagnosticsPipeline = async () => {
     if (process.platform === 'linux') {
       args.push('--with-deps');
     }
-    await runCommand(npxCmd, args);
+    await runNpx(args);
   });
 
   await step('Lint', async () => {
-    await runCommand(npmCmd, ['run', 'lint', '--', '--max-warnings=0']);
+    await runNpm(['run', 'lint', '--', '--max-warnings=0']);
   });
 
   await step('Unit tests', async () => {
-    await runCommand(npmCmd, ['run', 'test', '--', '--runInBand', '--reporter=verbose']);
+    await runNpm(['run', 'test', '--', '--reporter=verbose']);
   });
 
   await step('E2E tests', async () => {
-    await runCommand(npmCmd, ['run', 'test:e2e', '--', '--reporter=list']);
+    await runNpm(['run', 'test:e2e', '--', '--reporter=list']);
   });
 
   await step('Production build', async () => {
-    await runCommand(npmCmd, ['run', 'build']);
+    await runNpm(['run', 'build']);
   });
 
   if (hasVercelCli()) {
@@ -248,7 +281,7 @@ const runDiagnosticsPipeline = async () => {
   }
 
   await step('Next.js diagnostics', async () => {
-    await runCommand(npxCmd, ['next', 'info'], { FORCE_COLOR: '1' });
+    await runNpx(['next', 'info'], { FORCE_COLOR: '1' });
   });
 };
 
@@ -260,7 +293,7 @@ const ensureDevDependencies = async () => {
   await step('Install dependencies', async () => {
     const hasLockfile = existsSync(path.join(root, 'package-lock.json'));
     const installer = hasLockfile ? 'ci' : 'install';
-    await runCommand(npmCmd, [installer]);
+    await runNpm([installer]);
   });
 };
 

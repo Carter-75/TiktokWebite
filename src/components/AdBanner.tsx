@@ -20,8 +20,7 @@ const AdBannerInner = async () => {
 };
 
 const AdBanner = () => (
-  <Suspense fallback={<div className="ad-banner placeholder" /> }>
-    {/* @ts-expect-error Async Server Component */}
+  <Suspense fallback={<div className="ad-banner placeholder" />}>
     <AdBannerInner />
   </Suspense>
 );

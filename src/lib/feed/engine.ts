@@ -37,7 +37,9 @@ export const adjustWeights = (
     updated.dislikedTags = Array.from(disliked);
   }
   if (interaction === 'reported') {
-    updated.blacklistedItems = [...new Set([...updated.blacklistedItems, product.id])];
+    const blacklist = new Set(updated.blacklistedItems);
+    blacklist.add(product.id);
+    updated.blacklistedItems = Array.from(blacklist);
   }
 
   return updated;
