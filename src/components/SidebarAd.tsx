@@ -3,16 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 
 import AdMobSlot from '@/components/AdMobSlot';
-import { getAdMobSlot } from '@/lib/ads/loader';
+import { getAdMobSlot, hasAdMobConfig } from '@/lib/ads/loader';
 import { trackAdImpression } from '@/lib/metrics/client';
 
 const sidebarSlotId = getAdMobSlot('sidebar');
+const sidebarConfigured = hasAdMobConfig('sidebar') && Boolean(sidebarSlotId);
 
 const SidebarAd = () => {
   const [visible, setVisible] = useState(false);
   const containerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    if (!sidebarConfigured) return () => undefined;
     const el = containerRef.current;
     if (!el) return () => undefined;
     const observer = new IntersectionObserver(
@@ -27,13 +29,18 @@ const SidebarAd = () => {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [sidebarConfigured]);
 
   useEffect(() => {
-    if (visible) {
-      trackAdImpression('sidebar');
+    if (!sidebarConfigured || !visible) {
+      return;
     }
-  }, [visible]);
+    trackAdImpression('sidebar');
+  }, [sidebarConfigured, visible]);
+
+  if (!sidebarConfigured) {
+    return null;
+  }
 
   return (
     <aside

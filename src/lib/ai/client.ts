@@ -84,7 +84,28 @@ export const requestProductPage = async (
     });
 
     if (!raw.ok) {
-      throw new Error(`AI provider error: ${raw.status}`);
+      let errorMessage = `AI provider error: ${raw.status}`;
+      const contentType = raw.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        try {
+          const errorJson = await raw.json();
+          if (typeof errorJson?.error === 'string' && errorJson.error.trim()) {
+            errorMessage = errorJson.error.trim();
+          }
+        } catch {
+          // ignore parse issues and fall back to default message
+        }
+      } else {
+        try {
+          const text = (await raw.text()).trim();
+          if (text) {
+            errorMessage = text;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      throw new Error(errorMessage);
     }
     const json = await raw.json();
     const validated = validateProductResponse(json);

@@ -25,6 +25,7 @@ beforeEach(() => {
   process.env.AI_PROVIDER_URL = 'https://api.example.com/v1/responses';
   process.env.AI_PROVIDER_KEY = 'test-key';
   process.env.AI_PROVIDER_MODEL = 'test-model';
+  process.env.SERPAPI_KEY = 'test-serp';
 });
 
 afterAll(() => {
@@ -54,7 +55,22 @@ describe('requestProductPage', () => {
 
   it('uses the remote provider when it succeeds', async () => {
     const iso = new Date().toISOString();
-    fetchSpy.mockResolvedValueOnce({
+    const serpResponse = {
+      ok: true,
+      json: async () => ({
+        shopping_results: [
+          {
+            store: 'Test Retailer',
+            link: 'https://example.com/buy',
+            price: '$109',
+            shipping: 'Free Shipping',
+          },
+        ],
+      }),
+    } as Response;
+
+    fetchSpy
+      .mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         products: [
@@ -97,7 +113,9 @@ describe('requestProductPage', () => {
         ],
         debug: { provider: 'remote' },
       }),
-    } as Response);
+    } as Response)
+      .mockResolvedValueOnce(serpResponse)
+      .mockResolvedValueOnce(serpResponse);
 
     const result = await requestProductPage(baseRequest);
 

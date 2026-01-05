@@ -3,15 +3,21 @@
 import { useEffect } from 'react';
 
 import AdMobSlot from '@/components/AdMobSlot';
-import { getAdMobSlot } from '@/lib/ads/loader';
+import { getAdMobSlot, hasAdMobConfig } from '@/lib/ads/loader';
 import { trackAdImpression } from '@/lib/metrics/client';
 
 const inlineSlotId = getAdMobSlot('inline');
+const inlineConfigured = hasAdMobConfig('inline') && Boolean(inlineSlotId);
 
 const InlineAd = () => {
   useEffect(() => {
+    if (!inlineConfigured) return;
     trackAdImpression('inline');
-  }, []);
+  }, [inlineConfigured]);
+
+  if (!inlineConfigured) {
+    return null;
+  }
 
   return (
     <AdMobSlot

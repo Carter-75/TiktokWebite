@@ -66,8 +66,11 @@ const FeedShell = () => {
     [session, mergedPreferences, searchTerms, lastViewed]
   );
 
+  const isDiagnosticsUser = (session?.email ?? '').toLowerCase() === 'cartermoyer75@gmail.com';
+
   const { queue, consumeNext, loading, status: queueStatus, lastError, isOffline, refresh } = usePreloadQueue(
-    generationPayload
+    generationPayload,
+    { diagnosticsEnabled: isDiagnosticsUser }
   );
   const queueLength = queue.length;
 
@@ -314,8 +317,13 @@ const FeedShell = () => {
 
   const showLoader = !currentProduct;
   const loaderStatus = queueStatus === 'retrying' ? 'Recovering product queue…' : 'Pairing contenders…';
-  const loaderDetail = lastError
+  const displayableError = isDiagnosticsUser
     ? lastError
+    : lastError
+      ? 'We can’t fetch new drops right now. Hang tight—fresh contenders will return soon.'
+      : null;
+  const loaderDetail = displayableError
+    ? displayableError
     : authStatus !== 'ready'
       ? 'Syncing session and preferences before loading the deck.'
       : isOffline
@@ -323,7 +331,7 @@ const FeedShell = () => {
         : 'Hydrating the deck and tuning tag weights.';
   const blockingMessage = isOffline
     ? 'You appear to be offline. Reconnect to load fresh contenders.'
-    : lastError ?? null;
+    : displayableError;
   const showErrorCard = showLoader && !loading && Boolean(blockingMessage);
 
   const diagnostics = useMemo(
@@ -353,8 +361,13 @@ const FeedShell = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    (window as typeof window & { __feedDiagnostics?: unknown }).__feedDiagnostics = diagnostics;
-  }, [diagnostics]);
+    const globalWindow = window as typeof window & { __feedDiagnostics?: unknown };
+    if (isDiagnosticsUser) {
+      globalWindow.__feedDiagnostics = diagnostics;
+    } else if ('__feedDiagnostics' in globalWindow) {
+      delete globalWindow.__feedDiagnostics;
+    }
+  }, [diagnostics, isDiagnosticsUser]);
 
   const renderSlot = (
     label: string,
@@ -460,7 +473,7 @@ const FeedShell = () => {
         <div className="feed-shell__status" role="status">
           {isOffline
             ? 'Offline mode: serving cached drops.'
-            : lastError ?? 'Recovering the feed…'}
+            : displayableError ?? 'Recovering the feed…'}
         </div>
       )}
 
@@ -482,6 +495,7 @@ const FeedShell = () => {
                 onShowDiagnostics={() => setPanelOpen(true)}
                 busy={queueStatus === 'loading'}
                 isOffline={isOffline}
+                showDiagnostics={isDiagnosticsUser}
               />
             ) : (
               <LoaderSkeleton status={loaderStatus} detail={loaderDetail} />
@@ -511,17 +525,19 @@ const FeedShell = () => {
         </div>
         <div className="feed-shell__secondary">
           <SidebarAd />
-          <FeedDiagnostics
-            authStatus={authStatus}
-            queueStatus={queueStatus}
-            queueLength={queueLength}
-            lastError={lastError}
-            isOffline={isOffline}
-            sessionMode={session?.mode}
-            activeSearch={activeSearch}
-            currentProduct={currentProduct}
-            compareProduct={compareProduct}
-          />
+          {isDiagnosticsUser && (
+            <FeedDiagnostics
+              authStatus={authStatus}
+              queueStatus={queueStatus}
+              queueLength={queueLength}
+              lastError={lastError}
+              isOffline={isOffline}
+              sessionMode={session?.mode}
+              activeSearch={activeSearch}
+              currentProduct={currentProduct}
+              compareProduct={compareProduct}
+            />
+          )}
         </div>
       </div>
 

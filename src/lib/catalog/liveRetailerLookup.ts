@@ -10,23 +10,23 @@ export type RetailerListing = {
 const SERP_ENDPOINT = 'https://serpapi.com/search.json';
 
 const sanitizeListings = (results: unknown[]): RetailerListing[] => {
-  return results
-    .map((entry) => {
-      if (typeof entry !== 'object' || entry === null) {
-        return null;
-      }
-      const candidate = entry as { store?: string; link?: string; price?: string; shipping?: string };
-      if (!candidate.link || !candidate.link.startsWith('http')) {
-        return null;
-      }
-      return {
-        label: candidate.store ?? 'Retailer',
-        url: candidate.link,
-        priceHint: candidate.price,
-        trusted: candidate.shipping?.toLowerCase().includes('free') ?? false,
-      } satisfies RetailerListing;
-    })
-    .filter((entry): entry is RetailerListing => Boolean(entry));
+  const listings: RetailerListing[] = [];
+  for (const entry of results) {
+    if (typeof entry !== 'object' || entry === null) {
+      continue;
+    }
+    const candidate = entry as { store?: string; link?: string; price?: string; shipping?: string };
+    if (!candidate.link || !candidate.link.startsWith('http')) {
+      continue;
+    }
+    listings.push({
+      label: candidate.store ?? 'Retailer',
+      url: candidate.link,
+      priceHint: candidate.price,
+      trusted: candidate.shipping?.toLowerCase().includes('free') ?? false,
+    });
+  }
+  return listings;
 };
 
 export const fetchRetailerListings = async (query: string, limit = 3): Promise<RetailerListing[]> => {

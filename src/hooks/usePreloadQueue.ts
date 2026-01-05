@@ -52,7 +52,12 @@ const makeAutomationProduct = (): ProductContent => ({
 
 const hasWindow = () => typeof window !== 'undefined';
 
-export const usePreloadQueue = (payload: GenerateApiRequest) => {
+type QueueOptions = {
+  diagnosticsEnabled?: boolean;
+};
+
+export const usePreloadQueue = (payload: GenerateApiRequest, options?: QueueOptions) => {
+  const diagnosticsEnabled = options?.diagnosticsEnabled ?? false;
   const initialQueue = useMemo(() => (hasWindow() ? loadPreloadQueue() : []), []);
   const automationEnabled = detectAutomationMode();
   const [queue, setQueue] = useState<ProductContent[]>(() =>
@@ -186,13 +191,16 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       const message = (error as Error).message || 'Generation failed';
       setLastError(message);
       setStatus('retrying');
-      notify('generate-error', 'danger', `${message}. Showing saved picks while we retry.`);
+      const toastMessage = diagnosticsEnabled
+        ? `${message}. Showing saved picks while we retry.`
+        : 'We can’t fetch new drops right now. Showing saved picks while we retry.';
+      notify('generate-error', 'danger', toastMessage);
       debugLog('fetch:error', { message });
       return null;
     } finally {
       setLoading(false);
     }
-  }, [payload, notify, automationEnabled]);
+  }, [payload, notify, automationEnabled, diagnosticsEnabled]);
 
   const ensureFilled = useCallback(async () => {
     const scheduleRateLimitRetry = (delayMs: number) => {

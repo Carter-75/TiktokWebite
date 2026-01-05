@@ -6,6 +6,7 @@ export type FeedErrorCardProps = {
   onShowDiagnostics: () => void;
   busy?: boolean;
   isOffline?: boolean;
+  showDiagnostics?: boolean;
 };
 
 const onlineTips = [
@@ -26,6 +27,7 @@ const FeedErrorCard: React.FC<FeedErrorCardProps> = ({
   onShowDiagnostics,
   busy = false,
   isOffline = false,
+  showDiagnostics = true,
 }) => {
   const tips = isOffline ? offlineTips : onlineTips;
   return (
@@ -46,9 +48,11 @@ const FeedErrorCard: React.FC<FeedErrorCardProps> = ({
         <button type="button" className="button is-primary" onClick={onRetry} disabled={busy}>
           {busy ? 'Retrying…' : 'Retry now'}
         </button>
-        <button type="button" className="button is-light" onClick={onShowDiagnostics}>
-          View diagnostics
-        </button>
+        {showDiagnostics && (
+          <button type="button" className="button is-light" onClick={onShowDiagnostics}>
+            View diagnostics
+          </button>
+        )}
       </div>
     </section>
   );
