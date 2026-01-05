@@ -38,7 +38,6 @@ test.describe('Guest feed smoke test', () => {
     });
 
     await page.route('**/api/generate', async (route) => {
-      console.info('[e2e] intercepting /api/generate');
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -69,12 +68,16 @@ test.describe('Guest feed smoke test', () => {
     }, seededProduct);
 
     await page.goto('/');
-    const webdriverFlag = await page.evaluate(() => navigator.webdriver);
-    console.info('[e2e] navigator.webdriver', webdriverFlag);
-    const cookieDump = await page.evaluate(() => document.cookie);
-    console.info('[e2e] document.cookie', cookieDump);
-    const queueSnapshot = await page.evaluate(() => window.localStorage.getItem('preload_queue'));
-    console.info('[e2e] queue snapshot', queueSnapshot);
+
+    const debugState = await page.evaluate(() => ({
+      webdriver: navigator.webdriver,
+      cookies: document.cookie,
+      queue: window.localStorage.getItem('preload_queue'),
+    }));
+    console.log('[e2e] debug state', debugState);
+
+    const automationSnapshot = await page.evaluate(() => window.__preloadDebug);
+    console.log('[e2e] automation snapshot', automationSnapshot);
 
     await expect(page.getByRole('heading', { name: 'Product Pulse' })).toBeVisible();
 

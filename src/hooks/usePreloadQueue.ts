@@ -32,18 +32,19 @@ const hasWindow = () => typeof window !== 'undefined';
 export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const initialQueue = useMemo(() => loadPreloadQueue(), []);
   const automationEnabled = detectAutomationMode();
-  console.info('[preload] init', { automationEnabled, initialQueueLength: initialQueue.length });
   const [queue, setQueue] = useState<ProductContent[]>(() =>
     initialQueue.length ? initialQueue : automationEnabled ? [makeFallbackProduct()] : []
   );
-  useEffect(() => {
-    console.info('[preload] automationEnabled effect', automationEnabled);
-  }, [automationEnabled]);
-  useEffect(() => {
-    console.info('[preload] queue length effect', queue.length);
-  }, [queue]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'retrying'>('idle');
+  useEffect(() => {
+    if (!hasWindow()) return;
+    (window as unknown as { __preloadDebug?: unknown }).__preloadDebug = {
+      automationEnabled,
+      queueLength: queue.length,
+      status,
+    };
+  }, [automationEnabled, queue.length, status]);
   const [lastError, setLastError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(() => (hasWindow() ? !navigator.onLine : false));
   const abortRef = useRef<AbortController | null>(null);
@@ -128,10 +129,8 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
   const ensureFilled = useCallback(async () => {
     if (automationEnabled) {
-      console.info('[preload] ensureFilled automation entry', queueRef.current.length);
       if (queueRef.current.length === 0) {
         const fallback = makeFallbackProduct();
-        console.info('[preload] ensureFilled seeding fallback', fallback.id);
         queueRef.current = [fallback];
         setQueue([fallback]);
         persistPreloadQueue([fallback]);
@@ -184,14 +183,17 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   }, [notify, ensureFilled]);
 
   useEffect(() => {
-    setQueue([]);
-    queueRef.current = [];
-    persistPreloadQueue([]);
     retryDelayRef.current = INITIAL_RETRY_DELAY;
+
+    if (!automationEnabled) {
+      setQueue([]);
+      queueRef.current = [];
+      persistPreloadQueue([]);
+    }
+
     void ensureFilled();
     return () => abortRef.current?.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payloadKey]);
+  }, [payloadKey, automationEnabled, ensureFilled]);
 
   useEffect(() => {
     if (queue.length < DESIRED_QUEUE_LENGTH) {
