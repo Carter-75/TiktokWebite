@@ -13,7 +13,7 @@ const InlineAd = () => {
   useEffect(() => {
     if (!inlineConfigured) return;
     trackAdImpression('inline');
-  }, [inlineConfigured]);
+  }, []);
 
   if (!inlineConfigured) {
     return null;

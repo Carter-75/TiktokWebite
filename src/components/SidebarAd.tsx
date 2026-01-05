@@ -29,14 +29,14 @@ const SidebarAd = () => {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [sidebarConfigured]);
+  }, []);
 
   useEffect(() => {
     if (!sidebarConfigured || !visible) {
       return;
     }
     trackAdImpression('sidebar');
-  }, [sidebarConfigured, visible]);
+  }, [visible]);
 
   if (!sidebarConfigured) {
     return null;
