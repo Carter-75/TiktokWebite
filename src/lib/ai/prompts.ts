@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zodToJsonSchema, JsonSchema7Type } from 'zod-to-json-schema';
 import { ProductGenerationRequest, ProductGenerationResponse } from '@/types/product';
 
 const productSchema = z.object({
@@ -47,11 +48,17 @@ export const productResponseSchema = z.object({
     .optional(),
 });
 
+const PRODUCT_RESPONSE_SCHEMA_NAME = 'ProductSpotlightResponse';
+const productResponseJsonSchema: JsonSchema7Type = zodToJsonSchema(
+  productResponseSchema,
+  PRODUCT_RESPONSE_SCHEMA_NAME
+) as JsonSchema7Type;
+
 export type ProductResponseShape = z.infer<typeof productResponseSchema>;
 
 export const buildProductPrompt = (
   request: ProductGenerationRequest
-): { system: string; user: string; schema: z.ZodTypeAny } => {
+): { system: string; user: string; schema: JsonSchema7Type; schemaName: string } => {
   const desired = Math.min(4, Math.max(2, request.resultsRequested ?? 2));
   const system = `You generate concise shopping spotlights. Always return strictly valid JSON that matches the provided schema.
 - Produce exactly ${desired} distinct products per response.
@@ -76,7 +83,7 @@ export const buildProductPrompt = (
     },
   });
 
-  return { system, user, schema: productResponseSchema };
+  return { system, user, schema: productResponseJsonSchema, schemaName: PRODUCT_RESPONSE_SCHEMA_NAME };
 };
 
 export const validateProductResponse = (

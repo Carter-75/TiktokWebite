@@ -100,7 +100,7 @@ export const requestProductPage = async (
     throw new Error('AI provider credentials missing');
   }
 
-  const { system, user, schema } = buildProductPrompt(normalizedRequest);
+  const { system, user, schema, schemaName } = buildProductPrompt(normalizedRequest);
   try {
     recordMetric('ai.call_attempt', { provider: 'remote', count: desiredResults });
     const raw = await fetch(providerUrl, {
@@ -113,7 +113,14 @@ export const requestProductPage = async (
         model: process.env.AI_PROVIDER_MODEL ?? 'gpt-4o-mini',
         system,
         input: user,
-        response_format: { type: 'json_schema', json_schema: schema },
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: schemaName,
+            schema,
+            strict: true,
+          },
+        },
       }),
       cache: 'no-store',
     });
