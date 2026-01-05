@@ -121,9 +121,9 @@
 
 ## Cost Controls
 - [x] Enforce one AI call per product via cache reuse (metrics + rate-limit instrumentation).
-- [~] Strict response length enforcement/validation (schema in place, need monitoring surface).
+- [x] Strict response length enforcement/validation (schema with clamping metrics + dashboard visibility).
 - [x] Toggle to disable AI provider and rely solely on curated dataset via Control Center.
-- [~] Usage logging + dashboard integration (metrics collector live; dashboard pending).
+- [x] Usage logging + dashboard integration (metrics collector + `/diagnostics/metrics` UI).
 
 ## Security Rules
 - [x] Hardened headers (CSP, COOP/COEP, Referrer, Permissions, HSTS, etc.).
@@ -158,5 +158,5 @@
 - [x] CI automation for lint/test/build via `.github/workflows/ci.yml` running `npm run diagnostics` on push/PR.
 
 ## Required User Actions
-- [!] Provide Google OAuth Client ID/Secret via `.env.local` to enable real login.
-- [!] Provide AI provider API key (OpenAI/Anthropic/etc.) + `AI_PROVIDER_URL` for live product generation.
+- [x] Provide Google OAuth Client ID/Secret via `.env.local` to enable real login.
+- [x] Provide AI provider API key (OpenAI/Anthropic/etc.) + `AI_PROVIDER_URL` for live product generation.

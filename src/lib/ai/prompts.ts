@@ -33,6 +33,7 @@ const productSchema = z.object({
   noveltyScore: z.number().min(0).max(1),
   generatedAt: z.string(),
   source: z.enum(['ai', 'scrape', 'hybrid']),
+  retailLookupConfidence: z.number().min(0).max(1).optional(),
 });
 
 export const productResponseSchema = z.object({
@@ -57,7 +58,8 @@ export const buildProductPrompt = (
 - Each product must reference a real item that can be purchased today.
 - Include a direct HTTPS mediaUrl for every product (brand press kit or royalty-free photo that visually matches the item).
 - Avoid duplicate titles or URLs across the products.
-- Keep copy under 320 characters per field.`;
+- Keep copy under 320 characters per field.
+- Estimate how likely each product can be found at mainstream retailers using retailLookupConfidence (0 = obscure prototype, 1 = widely stocked). Favor confident matches when unsure.`;
   const user = JSON.stringify({
     preferences: request.preferences,
     searchTerms: request.searchTerms,

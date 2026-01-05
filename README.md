@@ -54,9 +54,20 @@ NEXT_PUBLIC_ADMOB_INLINE_SLOT=<admob-slot-id-inline>
 NEXT_PUBLIC_ADMOB_SIDEBAR_SLOT=<admob-slot-id-sidebar>
 NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id-if-using-one-placement>
 SERPAPI_KEY=<[! required] SerpAPI key for Google Shopping lookups>
-RETAIL_LOOKUP_LIMIT=2 # optional throttle; must be >= requested products
+RETAIL_LOOKUP_LIMIT=3 # optional throttle; hard-caps concurrent SerpAPI requests per batch
+RETAIL_LOOKUP_CONFIDENCE_THRESHOLD=0.45 # ignore AI-suggested products below this confidence to avoid wasted lookups
+RETAIL_LINKS_PER_PRODUCT=3 # max verified retailer URLs merged back onto each product card
+RETAIL_LOOKUP_CACHE_TTL_MS=900000 # cache lifetime (in ms) for canonicalized queries so repeats skip SerpAPI
+RETAIL_LOOKUP_CACHE_SIZE=256 # max distinct canonical queries to retain before LRU eviction
+METRICS_READ_KEY=<metrics-dashboard-read-token> # unlocks the metrics API + dashboard
 
 Copy [.env.template](.env.template) to `.env.local` (or `.env.development.local`) and fill in your local-only values. All `.env*` files are already gitignored, so `git add .` will skip them unless they were previously committed—run `git rm --cached <file>` if you ever need to untrack one.
+
+The retailer knobs work together to minimize SerpAPI spend: products emit a `retailLookupConfidence` score, low-confidence entries are dropped before lookup, canonical keys dedupe similar titles, hits are cached for `RETAIL_LOOKUP_CACHE_TTL_MS`, and the cache is capped via `RETAIL_LOOKUP_CACHE_SIZE` with LRU eviction. Adjust the thresholds to trade off freshness versus call volume; higher thresholds and shorter per-product link counts will further reduce traffic.
+
+To audit usage and AI costs, set `METRICS_READ_KEY` and visit `/diagnostics/metrics`. Paste the same key into the dashboard to pull a live snapshot (AI cache hits, payload clamps, token usage, ad impressions, etc.). Keys never leave the browser and can be revoked by rotating the env var.
+
+Need help generating secrets? Run `npm run bootstrap:env`. The script copies `.env.template` to `.env.local` (if needed), auto-generates high-entropy `SESSION_SECRET` and `METRICS_READ_KEY` values when they are missing/placeholder, and prints them so you can add the same strings to Vercel. Secrets stay in gitignored files—nothing is committed.
 
 ### Managing secrets in Vercel
 1. Open Vercel → Project → **Settings → Environment Variables**.

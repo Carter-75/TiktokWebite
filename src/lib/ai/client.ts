@@ -10,7 +10,34 @@ const memoryCache = new Map<string, ProductGenerationResponse>();
 const hashKey = (input: object) =>
   crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
-const clampText = (value: string, max = 320) => (value.length > max ? `${value.slice(0, max)}…` : value);
+const trackClamp = (field: string, before: number, after: number) => {
+  if (before <= after) return;
+  recordMetric('ai.payload_clamped', {
+    field,
+    before,
+    after,
+    overflow: Number(Math.max(0, before - after).toFixed(0)),
+  });
+};
+
+const clampText = (value: string, max = 320, field = 'text') => {
+  if (value.length <= max) return value;
+  trackClamp(field, value.length, max);
+  return `${value.slice(0, max)}…`;
+};
+
+const limitArray = <T>(items: T[], max: number, field: string) => {
+  if (items.length <= max) return items;
+  trackClamp(field, items.length, max);
+  return items.slice(0, max);
+};
+
+const clampConfidence = (value?: number) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 0.55;
+  }
+  return Number(Math.min(1, Math.max(0, value)).toFixed(3));
+};
 
 const deriveMediaUrl = (product: ProductContent) => {
   if (product.mediaUrl?.startsWith('http')) {
@@ -21,18 +48,26 @@ const deriveMediaUrl = (product: ProductContent) => {
   return `https://source.unsplash.com/featured/900x600?${query}`;
 };
 
-const sanitizeProduct = (product: ProductContent): ProductContent => ({
-  ...product,
-  summary: clampText(product.summary),
-  whatItIs: clampText(product.whatItIs),
-  whyUseful: clampText(product.whyUseful),
-  pros: product.pros.slice(0, 5).map((item) => clampText(item, 160)),
-  cons: product.cons.slice(0, 5).map((item) => clampText(item, 160)),
-  tags: product.tags.slice(0, 8),
-  buyLinks: product.buyLinks.slice(0, 4),
-  noveltyScore: Number(Math.min(1, Math.max(0, product.noveltyScore)).toFixed(2)),
-  mediaUrl: deriveMediaUrl(product),
-});
+const sanitizeProduct = (product: ProductContent): ProductContent => {
+  const trimmedPros = limitArray(product.pros, 5, 'pros');
+  const trimmedCons = limitArray(product.cons, 5, 'cons');
+  const trimmedTags = limitArray(product.tags, 8, 'tags');
+  const trimmedBuyLinks = limitArray(product.buyLinks, 4, 'buyLinks');
+
+  return {
+    ...product,
+    summary: clampText(product.summary, 320, 'summary'),
+    whatItIs: clampText(product.whatItIs, 320, 'whatItIs'),
+    whyUseful: clampText(product.whyUseful, 320, 'whyUseful'),
+    pros: trimmedPros.map((item, index) => clampText(item, 160, `pros[${index}]`)),
+    cons: trimmedCons.map((item, index) => clampText(item, 160, `cons[${index}]`)),
+    tags: trimmedTags,
+    buyLinks: trimmedBuyLinks,
+    noveltyScore: Number(Math.min(1, Math.max(0, product.noveltyScore)).toFixed(2)),
+    mediaUrl: deriveMediaUrl(product),
+    retailLookupConfidence: clampConfidence(product.retailLookupConfidence),
+  };
+};
 
 const clampResultCount = (value?: number) => Math.min(4, Math.max(2, value ?? 2));
 
@@ -108,7 +143,21 @@ export const requestProductPage = async (
       throw new Error(errorMessage);
     }
     const json = await raw.json();
+    const payloadText = JSON.stringify(json);
+    const payloadBytes = new TextEncoder().encode(payloadText).length;
     const validated = validateProductResponse(json);
+    recordMetric('ai.response_size_bytes', {
+      bytes: payloadBytes,
+      products: validated.products.length,
+    });
+    if (validated.debug?.promptTokens || validated.debug?.completionTokens) {
+      recordMetric('ai.token_usage', {
+        promptTokens: validated.debug?.promptTokens ?? 0,
+        completionTokens: validated.debug?.completionTokens ?? 0,
+        provider: validated.debug?.provider ?? 'unknown',
+      });
+    }
+
     const sanitizedProducts = validated.products.slice(0, desiredResults).map(sanitizeProduct);
     const enrichedProducts = await enrichProductsWithRetailers(sanitizedProducts);
 
@@ -120,6 +169,11 @@ export const requestProductPage = async (
       products: enrichedProducts,
       debug: validated.debug,
     };
+    const sanitizedBytes = new TextEncoder().encode(JSON.stringify(parsed)).length;
+    recordMetric('ai.response_sanitized_bytes', {
+      bytes: sanitizedBytes,
+      products: enrichedProducts.length,
+    });
     memoryCache.set(cacheKey, parsed);
     recordMetric('ai.call_success', { provider: 'remote', count: enrichedProducts.length });
     return { response: parsed, cacheHit: false };

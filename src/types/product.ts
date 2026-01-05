@@ -32,6 +32,7 @@ export type ProductContent = {
   noveltyScore: number;
   generatedAt: string;
   source: 'ai' | 'scrape' | 'hybrid';
+  retailLookupConfidence?: number;
 };
 
 export type ProductHistoryEntry = {

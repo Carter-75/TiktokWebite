@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "diagnostics": "node ./scripts/run-all.mjs --diagnostics"
+    "diagnostics": "node ./scripts/run-all.mjs --diagnostics",
+    "bootstrap:env": "node ./scripts/bootstrap-env.mjs"
   },
   "keywords": [],
   "author": "",
