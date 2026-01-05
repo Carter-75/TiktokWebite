@@ -112,12 +112,6 @@ const FeedShell = () => {
     }
   }, [queue, currentProduct, hydrateNext]);
 
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info('[feed] currentProduct', currentProduct?.id ?? 'none');
-    }
-  }, [currentProduct]);
-
   const handleInteraction = (type: 'liked' | 'disliked' | 'reported') => {
     if (!currentProduct) return;
     if (type === 'liked') vibrate([18, 30, 22]);

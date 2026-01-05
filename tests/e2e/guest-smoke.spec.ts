@@ -57,9 +57,24 @@ test.describe('Guest feed smoke test', () => {
       },
     ]);
 
+    await page.addInitScript((product) => {
+      const hydrated = {
+        ...product,
+        generatedAt: new Date().toISOString(),
+      };
+      window.localStorage.setItem(
+        'preload_queue',
+        JSON.stringify({ queue: [hydrated], hydratedAt: new Date().toISOString() })
+      );
+    }, seededProduct);
+
     await page.goto('/');
     const webdriverFlag = await page.evaluate(() => navigator.webdriver);
     console.info('[e2e] navigator.webdriver', webdriverFlag);
+    const cookieDump = await page.evaluate(() => document.cookie);
+    console.info('[e2e] document.cookie', cookieDump);
+    const queueSnapshot = await page.evaluate(() => window.localStorage.getItem('preload_queue'));
+    console.info('[e2e] queue snapshot', queueSnapshot);
 
     await expect(page.getByRole('heading', { name: 'Product Pulse' })).toBeVisible();
 

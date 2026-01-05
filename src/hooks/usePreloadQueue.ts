@@ -32,42 +32,22 @@ const hasWindow = () => typeof window !== 'undefined';
 export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const initialQueue = useMemo(() => loadPreloadQueue(), []);
   const automationEnabled = detectAutomationMode();
-
-  if (automationEnabled) {
-    const [queue, setQueue] = useState<ProductContent[]>(() =>
-      initialQueue.length ? initialQueue : [makeFallbackProduct()]
-    );
-    const consumeNext = useCallback(() => {
-      let consumed: ProductContent | null = null;
-      setQueue((prev) => {
-        if (prev.length === 0) return prev;
-        const [head, ...rest] = prev;
-        consumed = head;
-        return rest;
-      });
-      return consumed;
-    }, []);
-    const refresh = useCallback(() => {
-      setQueue((prev) => (prev.length ? prev : [makeFallbackProduct()]));
-    }, []);
-    return {
-      queue,
-      consumeNext,
-      loading: false,
-      status: 'idle' as const,
-      lastError: null,
-      isOffline: false,
-      refresh,
-    };
-  }
-
-  const [queue, setQueue] = useState<ProductContent[]>(initialQueue);
+  console.info('[preload] init', { automationEnabled, initialQueueLength: initialQueue.length });
+  const [queue, setQueue] = useState<ProductContent[]>(() =>
+    initialQueue.length ? initialQueue : automationEnabled ? [makeFallbackProduct()] : []
+  );
+  useEffect(() => {
+    console.info('[preload] automationEnabled effect', automationEnabled);
+  }, [automationEnabled]);
+  useEffect(() => {
+    console.info('[preload] queue length effect', queue.length);
+  }, [queue]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'retrying'>('idle');
   const [lastError, setLastError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(() => (hasWindow() ? !navigator.onLine : false));
   const abortRef = useRef<AbortController | null>(null);
-  const queueRef = useRef<ProductContent[]>(initialQueue);
+  const queueRef = useRef<ProductContent[]>(queue);
   const retryDelayRef = useRef(INITIAL_RETRY_DELAY);
   const retryTimerRef = useRef<number | null>(null);
   const toastCooldownRef = useRef<Record<string, number>>({});
@@ -95,6 +75,10 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+
+    if (automationEnabled) {
+      return makeFallbackProduct();
+    }
 
     if (hasWindow() && !navigator.onLine) {
       setIsOffline(true);
@@ -140,9 +124,21 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
     } finally {
       setLoading(false);
     }
-  }, [payload, notify]);
+  }, [payload, notify, automationEnabled]);
 
   const ensureFilled = useCallback(async () => {
+    if (automationEnabled) {
+      console.info('[preload] ensureFilled automation entry', queueRef.current.length);
+      if (queueRef.current.length === 0) {
+        const fallback = makeFallbackProduct();
+        console.info('[preload] ensureFilled seeding fallback', fallback.id);
+        queueRef.current = [fallback];
+        setQueue([fallback]);
+        persistPreloadQueue([fallback]);
+      }
+      setStatus('idle');
+      return;
+    }
     if (queueRef.current.length >= DESIRED_QUEUE_LENGTH) {
       setStatus('idle');
       return;
@@ -165,7 +161,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       persistPreloadQueue(updated);
       return updated;
     });
-  }, [fetchNext]);
+  }, [fetchNext, automationEnabled]);
 
   useEffect(() => {
     if (!hasWindow()) return undefined;
