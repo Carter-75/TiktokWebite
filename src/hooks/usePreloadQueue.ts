@@ -57,6 +57,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const rateLimitedRef = useRef(false);
   const fetchInFlightRef = useRef(false);
   const pendingRateLimitFallbackRef = useRef<ProductContent | null>(null);
+  const ensureFilledRef = useRef<() => Promise<void>>();
   const { pushToast } = useToast();
 
   useEffect(() => {
@@ -236,6 +237,10 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   }, [fetchNext, automationEnabled]);
 
   useEffect(() => {
+    ensureFilledRef.current = ensureFilled;
+  }, [ensureFilled]);
+
+  useEffect(() => {
     if (!hasWindow()) return undefined;
     const handleOffline = () => {
       setIsOffline(true);
@@ -272,9 +277,9 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
       persistPreloadQueue([]);
     }
 
-    void ensureFilled();
+    ensureFilledRef.current?.();
     return () => abortRef.current?.abort();
-  }, [payloadKey, automationEnabled, ensureFilled]);
+  }, [payloadKey, automationEnabled]);
 
   useEffect(() => {
     if (!automationEnabled || !hasWindow()) return;
@@ -297,9 +302,9 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
 
   useEffect(() => {
     if (queue.length < DESIRED_QUEUE_LENGTH) {
-      void ensureFilled();
+      ensureFilledRef.current?.();
     }
-  }, [queue.length, ensureFilled]);
+  }, [queue.length]);
 
   const consumeNext = useCallback(() => {
     if (queueRef.current.length === 0) return null;
@@ -327,6 +332,6 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
     status,
     lastError,
     isOffline,
-    refresh: () => void ensureFilled(),
+    refresh: () => ensureFilledRef.current?.(),
   };
 };
