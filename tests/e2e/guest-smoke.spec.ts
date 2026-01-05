@@ -69,14 +69,8 @@ test.describe('Guest feed smoke test', () => {
 
     await page.goto('/');
 
-    const debugState = await page.evaluate(() => ({
-      webdriver: navigator.webdriver,
-      cookies: document.cookie,
-      queue: window.localStorage.getItem('preload_queue'),
-    }));
-    console.log('[e2e] debug state', debugState);
-
-    const automationSnapshot = await page.evaluate(() => window.__preloadDebug);
+    await page.waitForFunction(() => Boolean(window.__preloadQueueSnapshot), { timeout: 5000 });
+    const automationSnapshot = await page.evaluate(() => window.__preloadQueueSnapshot);
     console.log('[e2e] automation snapshot', automationSnapshot);
 
     await expect(page.getByRole('heading', { name: 'Product Pulse' })).toBeVisible();
@@ -86,7 +80,7 @@ test.describe('Guest feed smoke test', () => {
     await expect(page.getByRole('button', { name: /Controls/i })).toBeVisible();
     await page.getByRole('button', { name: /Controls/i }).click();
     await expect(page.getByRole('heading', { name: 'Control Center' })).toBeVisible();
-    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: /Close preferences/i }).click();
 
     await expect(page.getByRole('button', { name: /Like/i })).toBeVisible();
     await page.getByRole('button', { name: /Next/i }).click();

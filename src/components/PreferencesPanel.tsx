@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HistoryEventType, HistorySnapshot, SessionState, UserSettings } from '@/types/preferences';
 
@@ -67,6 +67,17 @@ const PreferencesPanel = ({
 }: Props) => {
   const [timelineFilter, setTimelineFilter] = useState<'all' | HistoryEventType>('all');
   const [timelineQuery, setTimelineQuery] = useState('');
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = panelRef.current;
+    if (!node) return;
+    if (open) {
+      node.removeAttribute('inert');
+      return;
+    }
+    node.setAttribute('inert', '');
+  }, [open]);
 
   const filteredTimeline = useMemo(() => {
     const base = history.timeline ?? [];
@@ -94,7 +105,7 @@ const PreferencesPanel = ({
   };
 
   return (
-    <div className={`preferences-panel ${open ? 'is-open' : ''}`} aria-hidden={!open}>
+    <div ref={panelRef} className={`preferences-panel ${open ? 'is-open' : ''}`} aria-hidden={!open}>
       <div className="preferences-panel__backdrop" onClick={onClose} />
       <aside className="preferences-panel__content" aria-label="Session controls">
         <header>

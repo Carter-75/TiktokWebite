@@ -1,8 +1,15 @@
 /** @type {import('next').NextConfig} */
+const allowInlineScripts = process.env.NEXT_PUBLIC_E2E === 'true' || process.env.NODE_ENV !== 'production';
+
 const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
+    const scriptSrc = ["'self'"];
+    if (allowInlineScripts) {
+      scriptSrc.push("'unsafe-inline'");
+    }
+
     const securityHeaders = [
       {
         key: 'Content-Security-Policy',
@@ -12,7 +19,7 @@ const nextConfig = {
           "font-src 'self' https://fonts.gstatic.com",
           "img-src 'self' data: https://*",
           "connect-src 'self' https://oauth2.googleapis.com https://accounts.google.com",
-          "script-src 'self'",
+          `script-src ${scriptSrc.join(' ')}`,
           "frame-ancestors 'self' https://carter-portfolio.fyi",
           "base-uri 'self'",
           "form-action 'self' https://accounts.google.com",

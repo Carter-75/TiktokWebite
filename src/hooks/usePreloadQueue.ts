@@ -30,7 +30,7 @@ const makeFallbackProduct = (): ProductContent => {
 const hasWindow = () => typeof window !== 'undefined';
 
 export const usePreloadQueue = (payload: GenerateApiRequest) => {
-  const initialQueue = useMemo(() => loadPreloadQueue(), []);
+  const initialQueue = useMemo(() => (hasWindow() ? loadPreloadQueue() : []), []);
   const automationEnabled = detectAutomationMode();
   const [queue, setQueue] = useState<ProductContent[]>(() =>
     initialQueue.length ? initialQueue : automationEnabled ? [makeFallbackProduct()] : []
@@ -39,7 +39,7 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const [status, setStatus] = useState<'idle' | 'loading' | 'retrying'>('idle');
   useEffect(() => {
     if (!hasWindow()) return;
-    (window as unknown as { __preloadDebug?: unknown }).__preloadDebug = {
+    (window as typeof window & { __preloadQueueSnapshot?: unknown }).__preloadQueueSnapshot = {
       automationEnabled,
       queueLength: queue.length,
       status,
@@ -194,6 +194,25 @@ export const usePreloadQueue = (payload: GenerateApiRequest) => {
     void ensureFilled();
     return () => abortRef.current?.abort();
   }, [payloadKey, automationEnabled, ensureFilled]);
+
+  useEffect(() => {
+    if (!automationEnabled || !hasWindow()) return;
+    const storedQueue = loadPreloadQueue();
+    if (storedQueue.length) {
+      queueRef.current = storedQueue;
+      setQueue(storedQueue);
+      persistPreloadQueue(storedQueue);
+      setStatus('idle');
+      return;
+    }
+    if (queueRef.current.length === 0) {
+      const fallback = makeFallbackProduct();
+      queueRef.current = [fallback];
+      setQueue([fallback]);
+      persistPreloadQueue([fallback]);
+      setStatus('idle');
+    }
+  }, [automationEnabled]);
 
   useEffect(() => {
     if (queue.length < DESIRED_QUEUE_LENGTH) {
