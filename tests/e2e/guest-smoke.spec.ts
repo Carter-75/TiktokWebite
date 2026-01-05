@@ -46,7 +46,20 @@ test.describe('Guest feed smoke test', () => {
       });
     });
 
+    await page.context().addCookies([
+      {
+        name: 'pp-e2e',
+        value: '1',
+        domain: '127.0.0.1',
+        path: '/',
+        httpOnly: false,
+        secure: false,
+      },
+    ]);
+
     await page.goto('/');
+    const webdriverFlag = await page.evaluate(() => navigator.webdriver);
+    console.info('[e2e] navigator.webdriver', webdriverFlag);
 
     await expect(page.getByRole('heading', { name: 'Product Pulse' })).toBeVisible();
 

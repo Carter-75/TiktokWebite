@@ -8,8 +8,10 @@ import { loadPreloadQueue, persistPreloadQueue } from '@/lib/preferences/storage
 import { GenerateApiRequest, GenerateApiResponse } from '@/types/api';
 import { ProductContent } from '@/types/product';
 
-const isAutomationEnvironment = () =>
-  process.env.NEXT_PUBLIC_E2E === 'true' || (typeof navigator !== 'undefined' && navigator.webdriver);
+const detectAutomationMode = () =>
+  process.env.NEXT_PUBLIC_E2E === 'true' ||
+  (typeof navigator !== 'undefined' && navigator.webdriver) ||
+  (typeof document !== 'undefined' && document.cookie?.includes('pp-e2e=1'));
 
 const DESIRED_QUEUE_LENGTH = 3;
 const INITIAL_RETRY_DELAY = 1200;
@@ -29,22 +31,12 @@ const hasWindow = () => typeof window !== 'undefined';
 
 export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const initialQueue = useMemo(() => loadPreloadQueue(), []);
-  const automationEnabled = useMemo(() => isAutomationEnvironment(), []);
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info('[queue] automationEnabled', automationEnabled);
-    }
-  }, [automationEnabled]);
+  const automationEnabled = detectAutomationMode();
 
   if (automationEnabled) {
     const [queue, setQueue] = useState<ProductContent[]>(() =>
       initialQueue.length ? initialQueue : [makeFallbackProduct()]
     );
-    useEffect(() => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.info('[queue] length', queue.length);
-      }
-    }, [queue.length]);
     const consumeNext = useCallback(() => {
       let consumed: ProductContent | null = null;
       setQueue((prev) => {

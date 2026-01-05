@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { AuthMeResponse } from '@/types/api';
 
-const isAutomationEnvironment = () =>
-  process.env.NEXT_PUBLIC_E2E === 'true' || (typeof navigator !== 'undefined' && navigator.webdriver);
+const detectAutomationMode = () =>
+  process.env.NEXT_PUBLIC_E2E === 'true' ||
+  (typeof navigator !== 'undefined' && navigator.webdriver) ||
+  (typeof document !== 'undefined' && document.cookie?.includes('pp-e2e=1'));
 const E2E_SESSION: AuthMeResponse['session'] = {
   mode: 'guest',
   userId: 'e2e-guest',
@@ -13,7 +15,7 @@ const E2E_SESSION: AuthMeResponse['session'] = {
 };
 
 export const useAuthClient = () => {
-  const automationEnabled = useMemo(() => isAutomationEnvironment(), []);
+  const automationEnabled = detectAutomationMode();
   const [session, setSession] = useState<AuthMeResponse['session'] | null>(() =>
     automationEnabled ? E2E_SESSION : null
   );
@@ -37,12 +39,6 @@ export const useAuthClient = () => {
     if (automationEnabled) return;
     hydrate();
   }, [automationEnabled, hydrate]);
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info('[auth] automationEnabled', automationEnabled);
-    }
-  }, [automationEnabled]);
 
   const login = useCallback(() => {
     if (automationEnabled) return;
