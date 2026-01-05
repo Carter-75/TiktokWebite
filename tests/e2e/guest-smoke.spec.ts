@@ -31,36 +31,14 @@ const waitForProductCard = async (page) => {
   await page.getByTestId('product-card').waitFor({ state: 'visible', timeout: 25000 });
 };
 
-const primeLocalState = async (page) => {
-  await page.addInitScript(({ seeded }) => {
-    const hydratedAt = new Date().toISOString();
-    window.localStorage.setItem(
-      'preload_queue',
-      JSON.stringify({
-        queue: [{ ...seeded, generatedAt: hydratedAt }],
-        hydratedAt,
-      })
-    );
-  }, { seeded: seededProduct });
-};
-
 test.describe('Guest feed smoke test', () => {
   test('loads feed, interacts with control center, and passes axe audit', async ({ page }) => {
     page.on('console', (msg) => {
       console.log(`[browser:${msg.type()}] ${msg.text()}`);
     });
 
-    await page.route('**/auth/me', async (route) => {
-      console.info('[e2e] intercepting /auth/me');
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ session: { sessionId: 'automation-session', userId: 'guest-automation', mode: 'guest' } }),
-      });
-    });
-
     await page.route('**/api/generate', async (route) => {
-      console.info('[e2e] intercepting /api/generate', route.request().method());
+      console.info('[e2e] intercepting /api/generate');
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -68,20 +46,7 @@ test.describe('Guest feed smoke test', () => {
       });
     });
 
-    await primeLocalState(page);
-
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
-    const queueSnapshot = await page.evaluate(() => window.localStorage.getItem('preload_queue'));
-    console.info('[e2e] preload queue snapshot', queueSnapshot);
-    const debugState = await page.evaluate(() => ({
-      hasProductCard: Boolean(document.querySelector('[data-testid="product-card"]')),
-      loaderVisible: Boolean(document.querySelector('.skeleton')),
-      authBadgeVisible: Boolean(document.querySelector('[data-testid="auth-badge"]')),
-    }));
-    console.info('[e2e] debug state', debugState);
-    const html = await page.content();
-    console.info('[e2e] html snippet', html.slice(0, 500));
 
     await expect(page.getByRole('heading', { name: 'Product Pulse' })).toBeVisible();
 

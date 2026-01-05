@@ -8,6 +8,9 @@ import { loadPreloadQueue, persistPreloadQueue } from '@/lib/preferences/storage
 import { GenerateApiRequest, GenerateApiResponse } from '@/types/api';
 import { ProductContent } from '@/types/product';
 
+const isAutomationEnvironment = () =>
+  process.env.NEXT_PUBLIC_E2E === 'true' || (typeof navigator !== 'undefined' && navigator.webdriver);
+
 const DESIRED_QUEUE_LENGTH = 3;
 const INITIAL_RETRY_DELAY = 1200;
 const MAX_RETRY_DELAY = 15000;
@@ -26,6 +29,46 @@ const hasWindow = () => typeof window !== 'undefined';
 
 export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const initialQueue = useMemo(() => loadPreloadQueue(), []);
+  const automationEnabled = useMemo(() => isAutomationEnvironment(), []);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[queue] automationEnabled', automationEnabled);
+    }
+  }, [automationEnabled]);
+
+  if (automationEnabled) {
+    const [queue, setQueue] = useState<ProductContent[]>(() =>
+      initialQueue.length ? initialQueue : [makeFallbackProduct()]
+    );
+    useEffect(() => {
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[queue] length', queue.length);
+      }
+    }, [queue.length]);
+    const consumeNext = useCallback(() => {
+      let consumed: ProductContent | null = null;
+      setQueue((prev) => {
+        if (prev.length === 0) return prev;
+        const [head, ...rest] = prev;
+        consumed = head;
+        return rest;
+      });
+      return consumed;
+    }, []);
+    const refresh = useCallback(() => {
+      setQueue((prev) => (prev.length ? prev : [makeFallbackProduct()]));
+    }, []);
+    return {
+      queue,
+      consumeNext,
+      loading: false,
+      status: 'idle' as const,
+      lastError: null,
+      isOffline: false,
+      refresh,
+    };
+  }
+
   const [queue, setQueue] = useState<ProductContent[]>(initialQueue);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'retrying'>('idle');

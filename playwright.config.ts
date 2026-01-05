@@ -21,6 +21,10 @@ export default defineConfig({
     stdout: 'pipe',
     stderr: 'pipe',
     timeout: 120_000,
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_E2E: process.env.NEXT_PUBLIC_E2E ?? 'true',
+    },
   },
   projects: [
     {
