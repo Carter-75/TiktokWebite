@@ -1,0 +1,174 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - heading "Product Pulse" [level=1] [ref=e7]
+          - paragraph [ref=e8]: One fresh product at a time. Signals adapt as you interact.
+        - generic [ref=e9]:
+          - generic [ref=e10]:
+            - generic [ref=e11]: Guest Session
+            - button "Sign in with Google" [ref=e12] [cursor=pointer]
+          - button "Controls" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - searchbox "Search for products" [ref=e15]
+        - button "Search" [ref=e16] [cursor=pointer]
+      - generic [ref=e17]:
+        - paragraph [ref=e18]: You are exploring in guest mode. Preferences stay on this device only. Connect Google to sync across devices.
+        - button "Continue with Google" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - article [ref=e22]:
+            - generic [ref=e23]:
+              - text: Fresh Drop
+              - heading "TempoRun Heads-Up Coach" [level=2] [ref=e24]
+              - paragraph [ref=e25]: AR running glasses layering pace cues, weather, and playlist sync.
+            - generic [ref=e26]:
+              - heading "What it is" [level=3] [ref=e27]
+              - paragraph [ref=e28]: Featherweight AR eyewear tuned for runners with adaptive UI.
+            - generic [ref=e29]:
+              - heading "Why it's useful" [level=3] [ref=e30]
+              - paragraph [ref=e31]: Keeps attention on the route while surfacing just-in-time coaching.
+            - generic [ref=e32]:
+              - generic [ref=e33]:
+                - heading "Pros" [level=4] [ref=e34]
+                - list [ref=e35]:
+                  - listitem [ref=e36]: •9-hour battery
+                  - listitem [ref=e37]: •Audio transparency
+                  - listitem [ref=e38]: •Weather map overlay
+              - generic [ref=e39]:
+                - heading "Cons" [level=4] [ref=e40]
+                - list [ref=e41]:
+                  - listitem [ref=e42]: •Requires companion app
+                  - listitem [ref=e43]: •Prescription lenses extra
+            - generic [ref=e44]:
+              - heading "Price range" [level=3] [ref=e45]
+              - paragraph [ref=e46]: USD 249 – 299
+            - generic [ref=e47]:
+              - heading "Buy links" [level=3] [ref=e48]
+              - link "TempoRun$279 preorder" [ref=e50] [cursor=pointer]:
+                - /url: https://example.com/temporun
+            - generic [ref=e51]:
+              - generic [ref=e52]: Fitness
+              - generic [ref=e53]: Wearables
+              - generic [ref=e54]: Augmented Reality
+          - complementary [ref=e55]:
+            - text: Sponsored
+            - insertion [ref=e56]
+          - generic [ref=e57]:
+            - button "⏮ Back" [disabled] [ref=e58]
+            - button "👍 Like" [ref=e59] [cursor=pointer]
+            - button "👎 Skip" [ref=e60] [cursor=pointer]
+            - button "🚩 Report" [ref=e61] [cursor=pointer]
+            - button "⏭ Next" [ref=e62] [cursor=pointer]
+        - complementary [ref=e64]:
+          - complementary [ref=e65]:
+            - text: Sponsored
+            - insertion [ref=e66]
+      - generic:
+        - complementary:
+          - generic:
+            - generic:
+              - paragraph: Session
+              - heading [level=2]: Control Center
+              - paragraph: Tune how Product Pulse behaves, wipe data, or review privacy guarantees.
+            - button: ×
+          - generic:
+            - heading [level=3]: Current identity
+            - generic:
+              - generic:
+                - term: Mode
+                - definition: guest
+              - generic:
+                - term: User ID
+                - definition: e2e-gues…
+              - generic:
+                - term: Session ID
+                - definition: e2e-sess…
+          - generic:
+            - heading [level=3]: Personalization
+            - generic:
+              - checkbox
+              - generic:
+                - strong: Offline / static mode
+                - paragraph: Skip remote AI calls and rely on the curated dataset for guaranteed speed.
+            - generic:
+              - checkbox
+              - generic:
+                - strong: Reduced motion
+                - paragraph: Flatten animations and disable haptic flourishes for calmer browsing.
+            - generic:
+              - checkbox [checked]
+              - generic:
+                - strong: Allow anonymous telemetry
+                - paragraph: Share aggregate usage metrics to help tune AI cost controls.
+            - generic:
+              - generic: History retention
+              - combobox
+          - generic:
+            - heading [level=3]: History overview
+            - list:
+              - listitem:
+                - text: Viewed
+                - strong: "2"
+              - listitem:
+                - text: Liked
+                - strong: "0"
+              - listitem:
+                - text: Disliked
+                - strong: "0"
+              - listitem:
+                - text: Reports
+                - strong: "0"
+              - listitem:
+                - text: Searches
+                - strong: "0"
+            - generic:
+              - button: Clear history
+              - button: Reset personalization
+              - button: Download JSON
+          - generic:
+            - heading [level=3]: History vault
+            - paragraph: Inspect every interaction and search you have made. Use filters to jump to specific signals.
+            - generic:
+              - generic:
+                - generic: Filter
+                - combobox
+              - generic:
+                - generic: Search
+                - textbox:
+                  - /placeholder: Search titles or queries
+            - list:
+              - listitem:
+                - generic: Viewed
+                - generic:
+                  - strong: TempoRun Heads-Up Coach
+                  - paragraph: Fitness, Wearables, Augmented Reality
+                  - time: 1m ago
+              - listitem:
+                - generic: Viewed
+                - generic:
+                  - strong: Seeded Neon Diffuser
+                  - paragraph: Decor, Wellness
+                  - time: 1m ago
+          - generic:
+            - heading [level=3]: Data control
+            - paragraph: Wipe every trace of local activity, clear cookies, and reload a brand-new guest session. This cannot be undone.
+            - button: Erase everything
+          - generic:
+            - heading [level=3]: Privacy
+            - paragraph:
+              - text: Product Pulse never stores PII on the client, and all analytics are anonymized. Read the
+              - link:
+                - /url: /privacy.html
+                - text: privacy statement
+              - text: for details.
+  - complementary "Sponsored" [ref=e67]:
+    - complementary [ref=e68]:
+      - text: Sponsored
+      - insertion [ref=e69]
+  - alert [ref=e70]
+```
