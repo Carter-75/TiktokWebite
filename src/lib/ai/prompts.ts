@@ -4,6 +4,109 @@ import { ProductGenerationRequest, ProductGenerationResponse } from '@/types/pro
 
 type JsonSchema = Record<string, unknown>;
 
+type JsonSchemaWithDefs = JsonSchema & {
+  definitions?: Record<string, unknown>;
+  $defs?: Record<string, unknown>;
+};
+
+const resolveSchemaDefinition = (schema: JsonSchema, schemaName: string): JsonSchema => {
+  const typed = schema as JsonSchemaWithDefs;
+  const candidate = typed.definitions?.[schemaName] ?? typed.$defs?.[schemaName];
+  if (candidate && typeof candidate === 'object') {
+    return candidate as JsonSchema;
+  }
+  return schema;
+};
+
+const enforceRequiredProperties = (schema: JsonSchema): JsonSchema => {
+  if (!schema || typeof schema !== 'object') {
+    return schema;
+  }
+
+  const normalized: JsonSchema = { ...schema };
+
+  const normalizeChild = (child: unknown): unknown => {
+    if (Array.isArray(child)) {
+      return child.map((entry) => enforceRequiredProperties(entry as JsonSchema));
+    }
+    if (child && typeof child === 'object') {
+      return enforceRequiredProperties(child as JsonSchema);
+    }
+    return child;
+  };
+
+  if ('properties' in normalized && normalized.properties && typeof normalized.properties === 'object') {
+    const props = normalized.properties as Record<string, unknown>;
+    const enriched: Record<string, unknown> = {};
+    Object.entries(props).forEach(([key, value]) => {
+      enriched[key] = normalizeChild(value);
+    });
+    normalized.properties = enriched;
+    normalized.required = Object.keys(enriched);
+  }
+
+  if ('items' in normalized && normalized.items) {
+    normalized.items = normalizeChild(normalized.items);
+  }
+
+  ['anyOf', 'allOf', 'oneOf'].forEach((key) => {
+    const bucket = (normalized as Record<string, unknown>)[key];
+    if (Array.isArray(bucket)) {
+      (normalized as Record<string, unknown>)[key] = bucket.map((entry) => normalizeChild(entry));
+    }
+  });
+
+  return normalized;
+};
+
+const SUPPORTED_STRING_FORMATS = new Set(['date-time', 'time', 'email', 'uuid', 'ipv4', 'ipv6']);
+
+const stripUnsupportedFormats = (schema: JsonSchema): JsonSchema => {
+  if (!schema || typeof schema !== 'object') {
+    return schema;
+  }
+
+  const normalized: JsonSchema = { ...schema };
+  const sanitizeChild = (child: unknown): unknown => {
+    if (Array.isArray(child)) {
+      return child.map((entry) => stripUnsupportedFormats(entry as JsonSchema));
+    }
+    if (child && typeof child === 'object') {
+      return stripUnsupportedFormats(child as JsonSchema);
+    }
+    return child;
+  };
+
+  if ('format' in normalized) {
+    const value = (normalized as { format?: unknown }).format;
+    if (typeof value === 'string' && !SUPPORTED_STRING_FORMATS.has(value)) {
+      delete (normalized as { format?: unknown }).format;
+    }
+  }
+
+  if ('properties' in normalized && normalized.properties && typeof normalized.properties === 'object') {
+    const props = normalized.properties as Record<string, unknown>;
+    const enriched: Record<string, unknown> = {};
+    Object.entries(props).forEach(([key, value]) => {
+      enriched[key] = sanitizeChild(value);
+    });
+    normalized.properties = enriched;
+  }
+
+  if ('items' in normalized && normalized.items) {
+    normalized.items = sanitizeChild(normalized.items);
+  }
+
+  ['anyOf', 'allOf', 'oneOf'].forEach((key) => {
+    const bucket = (normalized as Record<string, unknown>)[key];
+    if (Array.isArray(bucket)) {
+      (normalized as Record<string, unknown>)[key] = bucket.map((entry) => sanitizeChild(entry));
+    }
+  });
+
+  return normalized;
+};
+
 const jsonSchemaConverter = zodToJsonSchema as unknown as (
   schema: z.ZodTypeAny,
   name?: string
@@ -26,22 +129,22 @@ const productSchema = z.object({
     z.object({
       id: z.string().min(1),
       label: z.string().min(1),
-      weight: z.number().optional(),
+      weight: z.number().nullable().optional(),
     })
   ),
   buyLinks: z.array(
     z.object({
       label: z.string(),
       url: z.string().url(),
-      priceHint: z.string().optional(),
+      priceHint: z.string().nullable().optional(),
       trusted: z.boolean().default(false),
     })
   ),
-  mediaUrl: z.string().url().optional(),
+  mediaUrl: z.string().url().nullable().optional(),
   noveltyScore: z.number().min(0).max(1),
   generatedAt: z.string(),
   source: z.enum(['ai', 'scrape', 'hybrid']),
-  retailLookupConfidence: z.number().min(0).max(1).optional(),
+  retailLookupConfidence: z.number().min(0).max(1).nullable().optional(),
 });
 
 export const productResponseSchema = z.object({
@@ -90,10 +193,14 @@ export const buildProductPrompt = (
     },
   });
 
+  const normalizedSchema = stripUnsupportedFormats(
+    enforceRequiredProperties(resolveSchemaDefinition(productResponseJsonSchema, PRODUCT_RESPONSE_SCHEMA_NAME))
+  );
+
   return {
     system,
     user,
-    schema: productResponseJsonSchema,
+    schema: normalizedSchema,
     schemaName: PRODUCT_RESPONSE_SCHEMA_NAME,
   };
 };

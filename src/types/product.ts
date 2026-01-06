@@ -1,13 +1,13 @@
 export type Tag = {
   id: string;
   label: string;
-  weight?: number;
+  weight?: number | null;
 };
 
 export type BuyLink = {
   label: string;
   url: string;
-  priceHint?: string;
+  priceHint?: string | null;
   trusted: boolean;
 };
 
@@ -28,11 +28,11 @@ export type ProductContent = {
   cons: string[];
   tags: Tag[];
   buyLinks: BuyLink[];
-  mediaUrl?: string;
+  mediaUrl?: string | null;
   noveltyScore: number;
   generatedAt: string;
   source: 'ai' | 'scrape' | 'hybrid';
-  retailLookupConfidence?: number;
+  retailLookupConfidence?: number | null;
 };
 
 export type ProductHistoryEntry = {
