@@ -3,6 +3,7 @@ import './globals.css';
 
 import type { Metadata } from 'next';
 import { Space_Grotesk } from 'next/font/google';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import AdBanner from '@/components/AdBanner';
 import AppProviders from '@/components/providers/AppProviders';
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="app-shell">{children}</div>
           <AdBanner />
         </AppProviders>
+        <SpeedInsights />
       </body>
     </html>
   );
