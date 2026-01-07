@@ -364,11 +364,7 @@ const runDiagnosticsPipeline = async () => {
   });
 
   await step('Lint', async () => {
-    await exec(npmRunnerCommand, npmRunnerArgs(['run', 'lint']), {
-      title: 'Lint',
-      logFile: 'lint.log',
-      verbose: true,
-    });
+    await runNpm(['lint']);
   });
 
   await step('Build', async () => {
