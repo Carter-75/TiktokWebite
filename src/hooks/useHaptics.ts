@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { uiLogger } from '@/lib/logger';
 
 const canVibrate = () => typeof window !== 'undefined' && 'vibrate' in navigator;
 
@@ -32,7 +33,9 @@ export const useHaptics = () => {
       try {
         navigator.vibrate(pattern);
       } catch (error) {
-        console.warn('[haptics] vibration rejected', error);
+        uiLogger.warn('Vibration rejected', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     },
     [enabled]

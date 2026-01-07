@@ -22,6 +22,7 @@ import { AdPlacement, hasAdMobConfig } from '@/lib/ads/loader';
 import { deriveSearchWeights, mergeSearchIntoPreferences, Interaction } from '@/lib/feed/engine';
 import { eraseAllLocalState } from '@/lib/preferences/storage';
 import { ProductContent } from '@/types/product';
+import { adLogger } from '@/lib/logger';
 
 const SUPPRESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SUPPRESSION_MAX_ATTEMPTS = 5;
@@ -76,14 +77,16 @@ const FeedShell = () => {
   const queueLength = queue.length;
 
   useEffect(() => {
-    if (!isDiagnosticsUser) return;
-    const placements: AdPlacement[] = ['inline', 'sidebar', 'footer'];
+    // Log ad configuration status for anyone who opens console (F12)
+    const placements: AdPlacement[] = ['footer', 'inline', 'sidebar'];
     placements.forEach((placement) => {
       if (!hasAdMobConfig(placement)) {
-        console.info(`[ads] ${placement} slot disabled: missing AdMob env vars.`);
+        adLogger.warn(`${placement} slot disabled`, { reason: 'Missing AdMob environment variables' });
+      } else {
+        adLogger.info(`${placement} slot configured`, { placement });
       }
     });
-  }, [isDiagnosticsUser]);
+  }, []);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;

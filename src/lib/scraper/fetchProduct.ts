@@ -1,4 +1,5 @@
 import { JSDOM } from 'jsdom';
+import { networkLogger } from '@/lib/logger';
 
 const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '169.254.169.254'];
 
@@ -11,7 +12,10 @@ const fetchRobots = async (origin: string): Promise<string> => {
     }
     return await res.text();
   } catch (error) {
-    console.warn('[scraper] failed to read robots', error);
+    networkLogger.warn('Failed to read robots.txt', {
+      origin,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return '';
   }
 };

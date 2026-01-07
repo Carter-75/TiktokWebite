@@ -16,7 +16,8 @@ Product Pulse is an AI-powered, TikTok-style shopping feed that shows you REAL A
 - **Account-bound saves**: Sign in to keep a locker of saved drops; guests still browse but nothing is persisted
 - **Guest + Google auth**: Runs in guest mode by default, seamlessly upgrades to Google OAuth when credentials are provided
 - **Local-first preferences**: History, tag weights, and cached products live in localStorage
-- **Monetization ready**: Sticky footer banner, inline ad slots, and desktop sidebar placements reserve space to keep CLS stable
+- **Monetization ready**: Footer, inline, and sidebar ad placements with no spacing when ads are disabled
+- **Centralized error logging**: All errors accessible via F12 console - no special account needed
 - **On-page diagnostics**: A built-in panel mirrors the queue/auth snapshot so you can copy/paste state
 - **Secure backend**: Hardened API routes for AI generation and authentication with OWASP-aligned validation
 - **History vault + privacy controls**: Unlimited interaction/search history with export, retention tuning, and one-click data erasure
@@ -65,12 +66,10 @@ AMAZON_ASSOCIATE_TAG=<your-amazon-associate-tag>
 AMAZON_PARTNER_TYPE=Associates
 AMAZON_REGION=us-east-1
 
-# Optional: AdMob monetization
+# Optional: AdMob monetization (inline and sidebar placements)
 NEXT_PUBLIC_ADMOB_CLIENT_ID=<ca-pub-xxxxxxxxxxxxxxxx>
-NEXT_PUBLIC_ADMOB_FOOTER_SLOT=<admob-slot-id-footer>
 NEXT_PUBLIC_ADMOB_INLINE_SLOT=<admob-slot-id-inline>
 NEXT_PUBLIC_ADMOB_SIDEBAR_SLOT=<admob-slot-id-sidebar>
-NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id>
 
 # Optional: Caching and limits
 RETAIL_LOOKUP_LIMIT=3

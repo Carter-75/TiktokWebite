@@ -1,4 +1,5 @@
 import { recordMetric } from '@/lib/metrics/collector';
+import { amazonLogger, logAmazonError } from '@/lib/logger';
 import crypto from 'crypto';
 
 export type RetailerListing = {
@@ -198,7 +199,7 @@ const sanitizeListings = (results: unknown[]): RetailerListing[] => {
     });
   }
   
-  console.log('[amazon] Sanitized', listings.length, 'Amazon product listings');
+  amazonLogger.info('Sanitized Amazon product listings', { count: listings.length });
   return listings;
 };
 
@@ -212,6 +213,11 @@ export const fetchRetailerListings = async (
   const partnerTag = process.env.AMAZON_ASSOCIATE_TAG;
   
   if (!accessKey || !secretKey || !partnerTag) {
+    logAmazonError('credentials', 'Amazon API credentials missing', {
+      hasAccessKey: !!accessKey,
+      hasSecretKey: !!secretKey,
+      hasPartnerTag: !!partnerTag,
+    });
     recordMetric('ai.retailer_lookup_skipped', { reason: 'amazon_credentials_missing' });
     throw new Error('amazon_credentials_missing');
   }
@@ -225,7 +231,7 @@ export const fetchRetailerListings = async (
     }
   }
 
-  console.log('[amazon] Searching Amazon Product API for:', query);
+  amazonLogger.info('Searching Amazon Product API', { query, limit });
 
   const timestamp = new Date().toISOString();
   const payload = JSON.stringify({
@@ -264,7 +270,11 @@ export const fetchRetailerListings = async (
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[amazon] API error:', response.status, errorText);
+      logAmazonError('api_request', `API returned status ${response.status}`, {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText.slice(0, 500),
+      });
       throw new Error(`amazon_api_${response.status}`);
     }
 
@@ -277,7 +287,10 @@ export const fetchRetailerListings = async (
 
     if (json.Errors && json.Errors.length > 0) {
       const error = json.Errors[0];
-      console.error('[amazon] API returned error:', error.Code, error.Message);
+      logAmazonError('api_error', error.Message || 'Unknown error', {
+        errorCode: error.Code,
+        errorMessage: error.Message,
+      });
       throw new Error(`amazon_error_${error.Code}`);
     }
 
@@ -285,16 +298,22 @@ export const fetchRetailerListings = async (
     const listings = sanitizeListings(items).slice(0, limit);
 
     if (!listings.length) {
+      amazonLogger.warn('No products found', { query });
       throw new Error('amazon_no_results');
     }
 
-    console.log('[amazon] Found', listings.length, 'Amazon products');
+    amazonLogger.success('Found Amazon products', { count: listings.length, query });
     recordMetric('ai.retailer_lookup_success', { count: listings.length });
     writeCache(cacheKey, listings);
     return listings;
   } catch (error) {
-    console.error('[amazon] Search failed:', (error as Error).message);
-    recordMetric('ai.retailer_lookup_failed', { reason: (error as Error).message });
+    const errorMessage = (error as Error).message;
+    logAmazonError('search', errorMessage, {
+      query,
+      limit,
+      error: error instanceof Error ? error : undefined,
+    });
+    recordMetric('ai.retailer_lookup_failed', { reason: errorMessage });
     throw error;
   }
 };

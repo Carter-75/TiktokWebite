@@ -13,6 +13,7 @@ import {
 } from '@/lib/ai/prompts';
 import { enrichProductsWithRetailers } from '@/lib/ai/linkEnricher';
 import { fetchRetailerListings } from '@/lib/catalog/liveRetailerLookup';
+import { aiLogger, logAIError, productLogger } from '@/lib/logger';
 
 const memoryCache = new Map<string, ProductGenerationResponse>();
 
@@ -236,7 +237,8 @@ const extractResponsePayload = (response: OpenAIResponse): unknown => {
   try {
     return JSON.parse(jsonText);
   } catch (error) {
-    console.error('[ai.provider] Failed to parse JSON payload', {
+    logAIError('parse', 'Failed to parse JSON payload from AI provider', {
+      error: error instanceof Error ? error : undefined,
       snippet: jsonText.slice(0, 200),
     });
     throw new Error('AI provider returned invalid JSON payload');
@@ -247,7 +249,7 @@ const logProviderError = (error: unknown) => {
   if (error instanceof OpenAI.APIError) {
     const pickHeader = (header: string) =>
       typeof error.headers?.get === 'function' ? error.headers.get(header) ?? undefined : undefined;
-    console.error('[ai.provider] OpenAI API error', {
+    logAIError('provider', 'OpenAI API error', {
       status: error.status,
       code: error.code,
       type: error.type,
@@ -267,11 +269,11 @@ const logProviderError = (error: unknown) => {
   }
 
   if (error instanceof Error) {
-    console.error('[ai.provider] Unexpected provider error', error);
+    logAIError('provider', 'Unexpected provider error', { error });
     return;
   }
 
-  console.error('[ai.provider] Unknown provider error', { error });
+  logAIError('provider', 'Unknown provider error', { error: String(error) });
 };
 
 /**
@@ -284,7 +286,7 @@ const searchAmazonProducts = async (searchTerms: string[]): Promise<Array<{
   price?: string;
   asin?: string;
 }>> => {
-  console.log('[ai.amazon] Searching Amazon for real products:', searchTerms);
+  aiLogger.info('Searching Amazon for real products', { searchTerms });
   
   const allProducts: Array<{title: string; url: string; price?: string; asin?: string}> = [];
   const seenAsins = new Set<string>();
@@ -295,12 +297,12 @@ const searchAmazonProducts = async (searchTerms: string[]): Promise<Array<{
   try {
     // Fetch more listings to ensure we have enough products
     const listings = await fetchRetailerListings(searchQuery, 6);
-    console.log('[ai.amazon] Found', listings.length, 'Amazon products for:', searchQuery);
+    productLogger.info('Found Amazon products', { count: listings.length, query: searchQuery });
     
     for (const listing of listings) {
       // Skip if missing essential data
       if (!listing.title || !listing.asin) {
-        console.log('[ai.amazon] Skipping listing without title/ASIN');
+        productLogger.debug('Skipping listing without title/ASIN', { listing });
         continue;
       }
       
@@ -360,24 +362,26 @@ export const requestProductPage = async (
   }
 
   // STEP 1: Search Amazon for real products first
-  console.log('[ai.workflow] STEP 1: Searching Amazon for real products');
+  aiLogger.info('STEP 1: Searching Amazon for real products');
   const amazonProducts = await searchAmazonProducts(normalizedRequest.searchTerms);
   
   if (amazonProducts.length === 0) {
-    console.error('[ai.workflow] No Amazon products found, cannot proceed');
+    productLogger.error('No Amazon products found, cannot proceed', { searchTerms: normalizedRequest.searchTerms });
     throw new Error('No Amazon products found for search terms');
   }
   
-  console.log('[ai.workflow] Found', amazonProducts.length, 'real Amazon products');
-  console.log('[ai.workflow] Sample:', amazonProducts[0]);
+  productLogger.success('Found real Amazon products', { 
+    count: amazonProducts.length,
+    sample: amazonProducts[0]
+  });
 
   // STEP 2: Have AI describe the real Amazon products
-  console.log('[ai.workflow] STEP 2: Having AI describe the real products');
+  aiLogger.info('STEP 2: Having AI describe the real products');
   const { system, user, schema, schemaName } = buildProductPrompt(normalizedRequest, amazonProducts);
   const openAiClient = buildOpenAIClient();
   const targetModel = process.env.AI_PROVIDER_MODEL ?? 'gpt-4o-mini';
   try {
-    console.log('[ai.client] Requesting AI descriptions for', amazonProducts.length, 'real products');
+    aiLogger.info('Requesting AI descriptions', { productCount: amazonProducts.length });
     
     recordMetric('ai.call_attempt', { provider: 'openai', count: desiredResults });
     const aiResponse = await invokeStructuredResponse(openAiClient, {
@@ -414,7 +418,7 @@ export const requestProductPage = async (
     }
 
     const sanitizedProducts = validated.products.slice(0, desiredResults).map(sanitizeProduct);
-    console.log('[ai.client] AI described', sanitizedProducts.length, 'products');
+    aiLogger.success('AI described products', { count: sanitizedProducts.length });
     
     // No need to enrich with retailers since we already have real Amazon products
     // Just ensure the Amazon links are present in buyLinks
@@ -436,7 +440,7 @@ export const requestProductPage = async (
       return product;
     });
     
-    console.log('[ai.workflow] Products ready with real Amazon links');
+    productLogger.success('Products ready with real Amazon links', { count: products.length });
     
     const mediaSafeProducts = await Promise.all(productsWithLinks.map(ensureProductMedia));
 

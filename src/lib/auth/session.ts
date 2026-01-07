@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { nanoid } from 'nanoid';
 
 import { SessionState } from '@/types/preferences';
+import { authLogger } from '@/lib/logger';
 
 export const SESSION_COOKIE = 'td_session';
 export const PREF_COOKIE = 'td_pref_mirror';
@@ -21,7 +22,7 @@ const getSecret = () => {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('SESSION_SECRET must be configured in production environments.');
   }
-  console.warn('[auth] SESSION_SECRET missing; using development fallback.');
+  authLogger.warn('SESSION_SECRET missing; using development fallback');
   cachedSecret = 'development-secret';
   return cachedSecret;
 };
@@ -43,7 +44,9 @@ const decode = (value: string): SessionState | null => {
     const json = Buffer.from(payload, 'base64url').toString('utf8');
     return JSON.parse(json) as SessionState;
   } catch (error) {
-    console.warn('[auth] failed to decode session', error);
+    authLogger.warn('Failed to decode session', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };

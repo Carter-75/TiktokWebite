@@ -7,6 +7,7 @@ import {
   UserSettings,
 } from '@/types/preferences';
 import type { ProductContent } from '@/types/product';
+import { uiLogger } from '@/lib/logger';
 
 export const STORAGE_KEYS = {
   userId: 'user_id',
@@ -53,7 +54,9 @@ const safeJsonParse = <T>(value: string | null, fallback: T): T => {
   try {
     return JSON.parse(value) as T;
   } catch (error) {
-    console.warn('[storage] failed to parse value', error);
+    uiLogger.warn('Failed to parse storage value', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return fallback;
   }
 };
@@ -185,7 +188,9 @@ export const eraseAllLocalState = () => {
   try {
     window.sessionStorage?.clear();
   } catch (error) {
-    console.warn('[storage] unable to clear sessionStorage', error);
+    uiLogger.warn('Unable to clear sessionStorage', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
   }
 };
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { AuthMeResponse } from '@/types/api';
+import { authLogger } from '@/lib/logger';
 
 const detectAutomationMode = () =>
   process.env.NEXT_PUBLIC_E2E === 'true' ||
@@ -30,7 +31,10 @@ export const useAuthClient = () => {
       setSession(json.session);
       setStatus('ready');
     } catch (error) {
-      console.error('[auth] failed to load session', error);
+      authLogger.error('Failed to load session', {
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       setStatus('ready');
     }
   }, [automationEnabled]);

@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast';
 import { loadPreloadQueue, persistPreloadQueue } from '@/lib/preferences/storage';
 import { GenerateApiRequest, GenerateApiResponse } from '@/types/api';
 import { ProductContent } from '@/types/product';
+import { productLogger, networkLogger } from '@/lib/logger';
 
 const detectAutomationMode = () =>
   process.env.NEXT_PUBLIC_E2E === 'true' ||
@@ -185,10 +186,15 @@ export const usePreloadQueue = (payload: GenerateApiRequest, options?: QueueOpti
         debugLog('fetch:aborted');
         return null;
       }
-      console.error('[feed] failed to fetch product', error);
+      const message = (error as Error).message || 'Generation failed';
+      productLogger.error('Failed to fetch products', {
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        queued: queueRef.current.length,
+        searchTerms: payload.searchTerms,
+      });
       rateLimitedRef.current = false;
       rateLimitResetRef.current = 0;
-      const message = (error as Error).message || 'Generation failed';
       setLastError(message);
       setStatus('retrying');
       const toastMessage = diagnosticsEnabled

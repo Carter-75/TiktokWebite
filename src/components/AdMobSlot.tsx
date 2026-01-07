@@ -3,23 +3,37 @@
 import { CSSProperties, useEffect, useRef } from 'react';
 
 import { getAdMobClientId } from '@/lib/ads/loader';
+import { logAdError, logAdWarning, logAdInfo } from '@/lib/logger';
 
 const ADMOB_CLIENT_ID = getAdMobClientId();
 
 const ensureAdMobScript = () => {
   if (typeof window === 'undefined') return Promise.resolve();
-  if (!ADMOB_CLIENT_ID) return Promise.resolve();
+  if (!ADMOB_CLIENT_ID) {
+    logAdWarning('script', 'AdMob client ID not configured', { clientId: ADMOB_CLIENT_ID });
+    return Promise.resolve();
+  }
   if (window.__admobScriptPromise) {
     return window.__admobScriptPromise;
   }
+  
+  logAdInfo('script', 'Loading AdMob script');
+  
   window.__admobScriptPromise = new Promise<void>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>('script[data-admob-loader="true"]');
     if (existing) {
       if (existing.dataset.loaded === 'true') {
+        logAdInfo('script', 'AdMob script already loaded');
         resolve();
       } else {
-        existing.addEventListener('load', () => resolve());
-        existing.addEventListener('error', () => reject(new Error('AdMob script failed to load')));
+        existing.addEventListener('load', () => {
+          logAdInfo('script', 'AdMob script loaded successfully');
+          resolve();
+        });
+        existing.addEventListener('error', () => {
+          logAdError('script', 'Failed to load', { url: existing.src });
+          reject(new Error('AdMob script failed to load'));
+        });
       }
       return;
     }
@@ -32,9 +46,16 @@ const ensureAdMobScript = () => {
     script.dataset.admobLoader = 'true';
     script.addEventListener('load', () => {
       script.dataset.loaded = 'true';
+      logAdInfo('script', 'AdMob script loaded successfully');
       resolve();
     });
-    script.addEventListener('error', () => reject(new Error('AdMob script failed to load')));
+    script.addEventListener('error', () => {
+      logAdError('script', 'Network error loading AdMob script', { 
+        url: script.src,
+        clientId: ADMOB_CLIENT_ID 
+      });
+      reject(new Error('AdMob script failed to load'));
+    });
     document.head.appendChild(script);
   });
   return window.__admobScriptPromise;
@@ -61,33 +82,44 @@ const AdMobSlot = ({
 
   useEffect(() => {
     if (!ADMOB_CLIENT_ID || !slotId || !insRef.current) {
+      if (!ADMOB_CLIENT_ID) {
+        logAdWarning(slotId || 'unknown', 'Missing ADMOB_CLIENT_ID in environment');
+      } else if (!slotId) {
+        logAdWarning('unknown', 'Missing slot ID for ad placement');
+      }
       return;
     }
     let cancelled = false;
+    
+    logAdInfo(slotId, `Initializing ad slot`);
+    
     ensureAdMobScript()
       .then(() => {
         if (cancelled) return;
         try {
           (window.adsbygoogle = window.adsbygoogle || []).push({});
+          logAdInfo(slotId, 'Ad request sent successfully');
         } catch (error) {
-          console.warn('[admob] unable to request ad slot', error);
+          logAdError(slotId, 'Failed to request ad', {
+            error: error instanceof Error ? error.message : String(error),
+            clientId: ADMOB_CLIENT_ID,
+          });
         }
       })
-      .catch((error) => console.warn('[admob] script failed to load', error));
+      .catch((error) => {
+        logAdError(slotId, 'Script loading failed', {
+          error: error instanceof Error ? error.message : String(error),
+          clientId: ADMOB_CLIENT_ID,
+        });
+      });
     return () => {
       cancelled = true;
     };
   }, [slotId]);
 
   if (!ADMOB_CLIENT_ID || !slotId) {
-    return (
-      <div className={className ?? ''} role="complementary" aria-label="Ad placeholder">
-        <div className="ad-placeholder">
-          <strong>Ad slot pending setup</strong>
-          <p>Define NEXT_PUBLIC_ADMOB_CLIENT_ID and slot ids in .env.local to serve ads.</p>
-        </div>
-      </div>
-    );
+    // Hide completely - no spacing, no placeholder
+    return null;
   }
 
   return (
