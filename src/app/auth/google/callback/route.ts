@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
-  const expectedState = consumeStateCookie();
+  const expectedState = await consumeStateCookie();
 
   if (!code || !state || !expectedState || state !== expectedState) {
     return NextResponse.redirect(new URL('/?auth=invalid_state', request.url));
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   try {
     const tokens = await exchangeCodeForTokens(code);
     const profile = await fetchGoogleProfile(tokens.access_token);
-    persistSession({
+    await persistSession({
       sessionId: `google-${nanoid(8)}`,
       userId: profile.sub,
       mode: 'google',

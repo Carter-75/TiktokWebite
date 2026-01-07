@@ -45,7 +45,8 @@ const sanitizeIdentity = (value?: string | null) => {
 };
 
 const keyFromRequest = (request: NextRequest, namespace: string, identityKey?: string) => {
-  const ip = request.ip ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  const ip = forwardedFor?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
   const ua = request.headers.get('user-agent') ?? 'unknown';
   const identity = sanitizeIdentity(identityKey) ?? 'shared';
   return `${namespace}:${identity}:${ip}:${ua}`;

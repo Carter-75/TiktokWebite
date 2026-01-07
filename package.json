@@ -7,7 +7,7 @@
     "launch": "node ./scripts/run-all.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "diagnostics": "node ./scripts/run-all.mjs --diagnostics",

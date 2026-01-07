@@ -14,7 +14,7 @@ const payloadSchema = z.object({
     likedTags: z.array(z.string()),
     dislikedTags: z.array(z.string()),
     blacklistedItems: z.array(z.string()),
-    tagWeights: z.record(z.number()),
+    tagWeights: z.record(z.string(), z.number()),
   }),
   searchTerms: z.array(z.string()).default([]),
   lastViewed: z

@@ -14,6 +14,6 @@ export async function GET(request: NextRequest) {
   }
 
   const returnTo = request.nextUrl.searchParams.get('returnTo') ?? '/';
-  const url = buildGoogleAuthUrl(returnTo);
+  const url = await buildGoogleAuthUrl(returnTo);
   return NextResponse.redirect(url ?? '/');
 }

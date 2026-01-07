@@ -60,16 +60,16 @@ export const createGuestSession = (): SessionState => ({
   mode: 'guest',
 });
 
-export const readSession = (): SessionState => {
-  const cookieStore = cookies();
+export const readSession = async (): Promise<SessionState> => {
+  const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE)?.value;
   if (!raw) return createGuestSession();
   const parsed = decode(raw);
   return parsed ?? createGuestSession();
 };
 
-export const persistSession = (session: SessionState) => {
-  const cookieStore = cookies();
+export const persistSession = async (session: SessionState) => {
+  const cookieStore = await cookies();
   cookieStore.set({
     name: SESSION_COOKIE,
     value: encode(session),
@@ -81,18 +81,13 @@ export const persistSession = (session: SessionState) => {
   });
 };
 
-export const clearSession = () => {
-  const cookieStore = cookies();
-  cookieStore.set({
-    name: SESSION_COOKIE,
-    value: '',
-    maxAge: 0,
-    path: '/',
-  });
+export const clearSession = async () => {
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_COOKIE);
 };
 
-export const setStateCookie = (state: string) => {
-  const cookieStore = cookies();
+export const setStateCookie = async (state: string) => {
+  const cookieStore = await cookies();
   cookieStore.set({
     name: STATE_COOKIE,
     value: state,
@@ -104,11 +99,11 @@ export const setStateCookie = (state: string) => {
   });
 };
 
-export const consumeStateCookie = (): string | null => {
-  const cookieStore = cookies();
+export const consumeStateCookie = async (): Promise<string | null> => {
+  const cookieStore = await cookies();
   const value = cookieStore.get(STATE_COOKIE)?.value ?? null;
   if (value) {
-    cookieStore.set({ name: STATE_COOKIE, value: '', maxAge: 0, path: '/' });
+    cookieStore.delete(STATE_COOKIE);
   }
   return value;
 };

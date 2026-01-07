@@ -6,7 +6,7 @@ import { enforceRateLimit, RateLimitError } from '@/lib/server/rateLimit';
 
 const schema = z.object({
   event: z.string().min(1).max(64),
-  meta: z.record(z.any()).optional(),
+  meta: z.record(z.string(), z.any()).optional(),
 });
 
 export async function POST(request: NextRequest) {

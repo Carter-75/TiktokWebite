@@ -13,12 +13,12 @@ const getBaseUrl = () => process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3
 export const isGoogleConfigured = () =>
   Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
-export const buildGoogleAuthUrl = (returnTo = '/') => {
+export const buildGoogleAuthUrl = async (returnTo = '/') => {
   if (!isGoogleConfigured()) {
     return null;
   }
   const state = crypto.createHash('sha256').update(`${nanoid()}-${Date.now()}`).digest('hex');
-  setStateCookie(state);
+  await setStateCookie(state);
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: `${getBaseUrl()}/auth/google/callback`,
