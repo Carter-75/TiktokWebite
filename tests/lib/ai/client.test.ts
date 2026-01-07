@@ -91,6 +91,63 @@ const resolveUrl = (input: Parameters<typeof fetch>[0]) => {
   return '';
 };
 
+// Mock Amazon Product Advertising API response
+const queueAmazonSearchResponse = () => {
+  const amazonResponse = {
+    ok: true,
+    json: async () => ({
+      SearchResult: {
+        Items: [
+          {
+            ASIN: 'B08TESTXYZ',
+            DetailPageURL: 'https://www.amazon.com/dp/B08TESTXYZ',
+            ItemInfo: {
+              Title: { DisplayValue: 'Portable Bluetooth Speaker' }
+            },
+            Offers: {
+              Listings: [
+                { Price: { DisplayAmount: '$109.99', Amount: 109.99, Currency: 'USD' } }
+              ]
+            },
+            Images: {
+              Primary: {
+                Large: { URL: 'https://m.media-amazon.com/images/I/test1.jpg' }
+              }
+            },
+            CustomerReviews: {
+              StarRating: { Value: 4.5 },
+              Count: 1234
+            }
+          },
+          {
+            ASIN: 'B09TESTXYZ',
+            DetailPageURL: 'https://www.amazon.com/dp/B09TESTXYZ',
+            ItemInfo: {
+              Title: { DisplayValue: 'Portable Power Bank' }
+            },
+            Offers: {
+              Listings: [
+                { Price: { DisplayAmount: '$69.99', Amount: 69.99, Currency: 'USD' } }
+              ]
+            },
+            Images: {
+              Primary: {
+                Large: { URL: 'https://m.media-amazon.com/images/I/test2.jpg' }
+              }
+            },
+            CustomerReviews: {
+              StarRating: { Value: 4.7 },
+              Count: 5678
+            }
+          }
+        ]
+      }
+    }),
+  } as Response;
+  
+  return amazonResponse;
+};
+
 beforeEach(() => {
   clearProductCache();
   fetchSpy.mockReset();
@@ -98,7 +155,9 @@ beforeEach(() => {
   process.env.AI_PROVIDER_URL = 'https://api.example.com/v1/responses';
   process.env.AI_PROVIDER_KEY = 'test-key';
   process.env.AI_PROVIDER_MODEL = 'test-model';
-  process.env.SERPAPI_KEY = 'test-serp';
+  process.env.AMAZON_ACCESS_KEY = 'test-access';
+  process.env.AMAZON_SECRET_KEY = 'test-secret';
+  process.env.AMAZON_ASSOCIATE_TAG = 'test-tag';
 });
 
 afterAll(() => {
@@ -107,14 +166,23 @@ afterAll(() => {
 
 describe('requestProductPage', () => {
   it('throws when provider config is missing', async () => {
-    delete process.env.AI_PROVIDER_KEY;
+    delete process.env.AMAZON_ACCESS_KEY;
 
-    await expect(requestProductPage(baseRequest)).rejects.toThrow('AI provider credentials missing');
+    await expect(requestProductPage(baseRequest)).rejects.toThrow('amazon_credentials_missing');
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(mockResponsesCreate).not.toHaveBeenCalled();
   });
 
   it('propagates provider errors when the remote call fails', async () => {
+    const amazonResponse = queueAmazonSearchResponse();
+    fetchSpy.mockImplementation((input) => {
+      const url = resolveUrl(input);
+      if (url.includes('amazon.com')) {
+        return Promise.resolve(amazonResponse);
+      }
+      return Promise.resolve(new Response(null, { status: 200, headers: { 'content-type': 'image/jpeg' } }));
+    });
+
     mockResponsesCreate.mockRejectedValueOnce(new Error('Product generation is unavailable right now.'));
 
     await expect(requestProductPage(baseRequest)).rejects.toThrow('Product generation is unavailable right now.');
@@ -123,24 +191,12 @@ describe('requestProductPage', () => {
 
   it('uses the remote provider when it succeeds', async () => {
     queueSuccessfulAiResponse();
-    const serpResponse = {
-      ok: true,
-      json: async () => ({
-        shopping_results: [
-          {
-            store: 'Test Retailer',
-            link: 'https://example.com/buy',
-            price: '$109',
-            shipping: 'Free Shipping',
-          },
-        ],
-      }),
-    } as Response;
+    const amazonResponse = queueAmazonSearchResponse();
 
     fetchSpy.mockImplementation((input) => {
       const url = resolveUrl(input);
-      if (url.includes('serpapi.com')) {
-        return Promise.resolve(serpResponse);
+      if (url.includes('amazon.com')) {
+        return Promise.resolve(amazonResponse);
       }
       return Promise.resolve(
         new Response(null, {
@@ -162,24 +218,12 @@ describe('requestProductPage', () => {
 
   it('falls back to placeholder media when remote assets fail validation', async () => {
     queueSuccessfulAiResponse();
-    const serpResponse = {
-      ok: true,
-      json: async () => ({
-        shopping_results: [
-          {
-            store: 'Another Retailer',
-            link: 'https://example.com/shop',
-            price: '$209',
-            shipping: 'Free Shipping',
-          },
-        ],
-      }),
-    } as Response;
+    const amazonResponse = queueAmazonSearchResponse();
 
     fetchSpy.mockImplementation((input) => {
       const url = resolveUrl(input);
-      if (url.includes('serpapi.com')) {
-        return Promise.resolve(serpResponse);
+      if (url.includes('amazon.com')) {
+        return Promise.resolve(amazonResponse);
       }
       return Promise.resolve(
         new Response(null, {

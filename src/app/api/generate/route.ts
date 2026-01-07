@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { requestProductPage } from '@/lib/ai/client';
+import { staticProducts } from '@/lib/data/staticProducts';
 import { recordMetric } from '@/lib/metrics/collector';
 import { enforceRateLimit, RateLimitError } from '@/lib/server/rateLimit';
 
@@ -32,12 +33,13 @@ const payloadSchema = z.object({
         cons: z.array(z.string()),
         tags: z.array(z.object({ id: z.string(), label: z.string() })),
         buyLinks: z.array(
-          z.object({ label: z.string(), url: z.string(), priceHint: z.string().optional(), trusted: z.boolean() })
+          z.object({ label: z.string(), url: z.string(), priceHint: z.string().nullable().optional(), trusted: z.boolean() })
         ),
-        mediaUrl: z.string().optional(),
+        mediaUrl: z.string().nullable().optional(),
         noveltyScore: z.number(),
         generatedAt: z.string(),
         source: z.enum(['ai', 'scrape', 'hybrid']),
+        retailLookupConfidence: z.number().nullable().optional(),
       })
     )
     .default([]),
@@ -90,7 +92,21 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ ...response, cacheHit });
   } catch (error) {
-    console.error('[api.generate] provider failure', error);
-    return NextResponse.json({ error: 'Product generation is unavailable right now.' }, { status: 503 });
+    // NO FALLBACKS - Show clear error so you know when things break
+    console.error('[api.generate] AI provider failed - NO FALLBACK', error);
+    
+    recordMetric('api.generate', {
+      failed: true,
+      reason: (error as Error).message || 'unknown',
+    });
+    
+    return NextResponse.json(
+      { 
+        error: 'Product generation failed. Check console for details.',
+        details: (error as Error).message,
+        stack: process.env.NODE_ENV === 'development' ? (error as Error).stack : undefined
+      }, 
+      { status: 503 }
+    );
   }
 }

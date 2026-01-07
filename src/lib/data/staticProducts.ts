@@ -20,16 +20,16 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'Aurora Store',
-        url: 'https://example.com/aurora',
-        priceHint: '$199 bundle',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/Govee-Glide-Wall-Light/dp/B08LVPWQQP',
+        priceHint: '$199',
         trusted: true,
       },
       {
-        label: 'Amazon',
-        url: 'https://amazon.com/dp/aurora-light',
-        priceHint: '$219 Prime',
-        trusted: false,
+        label: 'Best Buy',
+        url: 'https://www.bestbuy.com/site/govee-glide-wall-light/6428867.p',
+        priceHint: '$199',
+        trusted: true,
       },
     ],
     mediaUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee',
@@ -53,9 +53,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'BrewSync Official',
-        url: 'https://example.com/brewsync',
-        priceHint: '$359 launch price',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/Breville-BES870XL-Barista-Express-Espresso/dp/B00CH9QWOU',
+        priceHint: '$699',
+        trusted: true,
+      },
+      {
+        label: 'Williams Sonoma',
+        url: 'https://www.williams-sonoma.com/products/breville-barista-express',
+        priceHint: '$699',
         trusted: true,
       },
     ],
@@ -80,9 +86,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'TempoRun',
-        url: 'https://example.com/temporun',
-        priceHint: '$279 preorder',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/Oakley-Radar-Running-Sunglasses/dp/B001PL3MJ4',
+        priceHint: '$189',
+        trusted: true,
+      },
+      {
+        label: 'REI',
+        url: 'https://www.rei.com/product/oakley-radar',
+        priceHint: '$189',
         trusted: true,
       },
     ],
@@ -107,9 +119,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'Stratus Supply',
-        url: 'https://example.com/stratus-pack',
-        priceHint: '$279 kit',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/Peak-Design-Travel-Backpack-45L/dp/B07NMPQSM5',
+        priceHint: '$299',
+        trusted: true,
+      },
+      {
+        label: 'Peak Design',
+        url: 'https://www.peakdesign.com/products/travel-backpack',
+        priceHint: '$299',
         trusted: true,
       },
     ],
@@ -134,9 +152,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'Lumen Official',
-        url: 'https://example.com/lumen-garden',
-        priceHint: '$189 starter rail',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/AeroGarden-Harvest-Indoor-Garden-Gourmet/dp/B07CKK8Z78',
+        priceHint: '$119',
+        trusted: true,
+      },
+      {
+        label: 'Target',
+        url: 'https://www.target.com/p/aerogarden-harvest',
+        priceHint: '$119',
         trusted: true,
       },
     ],
@@ -161,9 +185,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'Kinetic Studio',
-        url: 'https://example.com/kinetic-desk',
-        priceHint: '$749 fully loaded',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/FEZIBO-Electric-Standing-Adjustable-Workstation/dp/B08MTZT57Y',
+        priceHint: '$349',
+        trusted: true,
+      },
+      {
+        label: 'Autonomous',
+        url: 'https://www.autonomous.ai/standing-desks/smartdesk-2-business',
+        priceHint: '$499',
         trusted: true,
       },
     ],
@@ -188,9 +218,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'Ember Studio',
-        url: 'https://example.com/ember-scribe',
-        priceHint: '$499 launch bundle',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/reMarkable-Paper-Tablet-Digital-Notebook/dp/B09TT4T8PJ',
+        priceHint: '$399',
+        trusted: true,
+      },
+      {
+        label: 'reMarkable',
+        url: 'https://remarkable.com/store/remarkable-2',
+        priceHint: '$399',
         trusted: true,
       },
     ],
@@ -215,9 +251,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'Wave Labs',
-        url: 'https://example.com/waveshift',
-        priceHint: '$169 intro price',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/Adaptive-Sound-Technologies-LectroFan-Non-Looping/dp/B00MY8V86Q',
+        priceHint: '$49',
+        trusted: true,
+      },
+      {
+        label: 'Best Buy',
+        url: 'https://www.bestbuy.com/site/lectrofan-white-noise-machine/5706713.p',
+        priceHint: '$49',
         trusted: true,
       },
     ],
@@ -242,9 +284,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'Terra Outfitters',
-        url: 'https://example.com/terrachill',
-        priceHint: '$329 preorders',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/YETI-Tundra-Cooler-Seafoam/dp/B07Q2JYCKM',
+        priceHint: '$349',
+        trusted: true,
+      },
+      {
+        label: 'REI',
+        url: 'https://www.rei.com/product/yeti-tundra-cooler',
+        priceHint: '$349',
         trusted: true,
       },
     ],
@@ -269,9 +317,15 @@ export const staticProducts: ProductContent[] = [
     ],
     buyLinks: [
       {
-        label: 'PulsePilot',
-        url: 'https://example.com/pulsepilot',
-        priceHint: '$149 bundle',
+        label: 'Amazon',
+        url: 'https://www.amazon.com/PowerDot-Generation-Muscle-Stimulator-Bluetooth/dp/B07L97RZD1',
+        priceHint: '$299',
+        trusted: true,
+      },
+      {
+        label: 'PowerDot',
+        url: 'https://www.powerdot.com/products/powerdot-2-0',
+        priceHint: '$299',
         trusted: true,
       },
     ],

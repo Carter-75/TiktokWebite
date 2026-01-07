@@ -1,25 +1,32 @@
 # Product Pulse
 
-Product Pulse is an AI-powered, TikTok-style shopping feed. Each scroll now reveals a head-to-head matchup between two products—both generated (or scraped) on demand, preloaded ahead of time, and tuned by your interactions.
+Product Pulse is an AI-powered, TikTok-style shopping feed that shows you REAL Amazon products. The app searches Amazon's catalog using the official Product Advertising API, then uses AI to create engaging descriptions and comparisons.
+
+## How It Works
+1. **Search Real Products**: Uses Amazon Product Advertising API to find actual products you can buy
+2. **AI Describes Them**: OpenAI generates compelling descriptions, pros/cons, and summaries
+3. **You Decide**: Swipe through products, like what you love, dislike what you don't
+4. **Smart Learning**: Your interactions adjust recommendations to match your preferences
 
 ## Feature Highlights
-- **Dual compare lane**: Always keeps two equally weighted products on screen so you can like/dislike/save in context.
-- **Infinite feed**: Maintains a background queue of pre-generated spotlights to instantly refill either slot.
-- **Interaction learning**: Every like/dislike/report adjusts tag weights and future recommendations.
-- **Account-bound saves**: Sign in to keep a locker of saved drops; guests still browse but nothing is persisted.
-- **Guest + Google auth**: Runs in guest mode by default, seamlessly upgrades to Google OAuth when credentials are provided.
-- **Local-first preferences**: History, tag weights, and cached products live in localStorage (mirrored to secure cookies as needed).
-- **Monetization ready**: Sticky footer banner, inline ad slots, and desktop sidebar placements reserve space to keep CLS stable.
-- **Live retailer enrichment (mandatory)**: Each AI card is validated against real US storefront links (via Google Shopping/SerpAPI) so every CTA lands on an actual product page; requests fail when no verifiable listing exists.
-- **On-page diagnostics**: A built-in panel mirrors the queue/auth snapshot so you can copy/paste state whenever `npm run launch` surfaces an issue.
-- **Secure backend surface**: Hardened API routes for AI generation, compliant scraping, and authentication with OWASP-aligned validation.
-- **History vault + privacy controls**: Unlimited interaction/search history with export, retention tuning, and one-click data erasure.
+- **Real Amazon Products Only**: Every product is real, searchable on Amazon with verified ASINs
+- **Dual compare lane**: Always keeps two equally weighted products on screen so you can like/dislike/save in context
+- **Infinite feed**: Maintains a background queue of pre-generated spotlights to instantly refill either slot
+- **Interaction learning**: Every like/dislike/report adjusts tag weights and future recommendations
+- **Account-bound saves**: Sign in to keep a locker of saved drops; guests still browse but nothing is persisted
+- **Guest + Google auth**: Runs in guest mode by default, seamlessly upgrades to Google OAuth when credentials are provided
+- **Local-first preferences**: History, tag weights, and cached products live in localStorage
+- **Monetization ready**: Sticky footer banner, inline ad slots, and desktop sidebar placements reserve space to keep CLS stable
+- **On-page diagnostics**: A built-in panel mirrors the queue/auth snapshot so you can copy/paste state
+- **Secure backend**: Hardened API routes for AI generation and authentication with OWASP-aligned validation
+- **History vault + privacy controls**: Unlimited interaction/search history with export, retention tuning, and one-click data erasure
 
 ## Stack Overview
-- **Frontend**: Next.js 14 (App Router), React 18, Bulma tokens, CSS Modules + custom design system.
-- **Backend**: Next.js route handlers (`/api/generate`, `/api/scrape`, `/auth/*`).
-- **AI Layer**: Pluggable HTTP client (`AI_PROVIDER_URL`, `AI_PROVIDER_KEY`) with JSON schema enforcement and mandatory live retailer verification (no static fallback).
-- **Testing**: Vitest unit tests covering feed logic (extendable for API + e2e scenarios).
+- **Frontend**: Next.js 14 (App Router), React 18, Bulma tokens, CSS Modules + custom design system
+- **Backend**: Next.js route handlers (`/api/generate`, `/auth/*`)
+- **Product Discovery**: Amazon Product Advertising API (official) for real product search
+- **AI Layer**: OpenAI (gpt-4o-mini) for product descriptions and recommendations
+- **Testing**: Vitest unit tests + Playwright E2E tests
 
 ## Quick Start
 
@@ -37,54 +44,83 @@ Want a single "do everything" command? Run `npm run launch`. By default it wipes
 The API surface lives inside Next.js route handlers located under `src/app/api/*` and `src/app/auth/*`. Running `npm run dev` (or the full pipeline via `npm run launch`) boots the React UI *and* these backend handlers in a single Node process, so there is no separate server to manage.
 
 ### Required Environment Variables
-Create a `.env.local` with the following values when you are ready to enable live auth/AI:
+Create a `.env.local` with the following values:
 
 ```dotenv
-GOOGLE_CLIENT_ID=<[! required] OAuth client id>
-GOOGLE_CLIENT_SECRET=<[! required] OAuth secret>
-SESSION_SECRET=<random string for HMAC signing>
+# Google OAuth (for user accounts)
+GOOGLE_CLIENT_ID=<your-google-client-id>
+GOOGLE_CLIENT_SECRET=<your-google-client-secret>
+SESSION_SECRET=<random-string-for-hmac>
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
-AI_PROVIDER_URL=<[! required for live AI] JSON-only endpoint>
-AI_PROVIDER_KEY=<api key>
+
+# OpenAI (for product descriptions)
+AI_PROVIDER_URL=https://api.openai.com/v1/responses
+AI_PROVIDER_KEY=<your-openai-api-key>
 AI_PROVIDER_MODEL=gpt-4o-mini
+
+# Amazon Product Advertising API (REQUIRED - for real product search)
+AMAZON_ACCESS_KEY=<your-amazon-access-key>
+AMAZON_SECRET_KEY=<your-amazon-secret-key>
+AMAZON_ASSOCIATE_TAG=<your-amazon-associate-tag>
+AMAZON_PARTNER_TYPE=Associates
+AMAZON_REGION=us-east-1
+
+# Optional: AdMob monetization
 NEXT_PUBLIC_ADMOB_CLIENT_ID=<ca-pub-xxxxxxxxxxxxxxxx>
-# Optional: either set individual slot ids or fall back to the default slot below
 NEXT_PUBLIC_ADMOB_FOOTER_SLOT=<admob-slot-id-footer>
 NEXT_PUBLIC_ADMOB_INLINE_SLOT=<admob-slot-id-inline>
 NEXT_PUBLIC_ADMOB_SIDEBAR_SLOT=<admob-slot-id-sidebar>
-NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id-if-using-one-placement>
-SERPAPI_KEY=<[! required] SerpAPI key for Google Shopping lookups>
-RETAIL_LOOKUP_LIMIT=3 # optional throttle; hard-caps concurrent SerpAPI requests per batch
-RETAIL_LOOKUP_CONFIDENCE_THRESHOLD=0.45 # ignore AI-suggested products below this confidence to avoid wasted lookups
-RETAIL_LINKS_PER_PRODUCT=3 # max verified retailer URLs merged back onto each product card
-RETAIL_LOOKUP_CACHE_TTL_MS=900000 # cache lifetime (in ms) for canonicalized queries so repeats skip SerpAPI
-RETAIL_LOOKUP_CACHE_SIZE=256 # max distinct canonical queries to retain before LRU eviction
-METRICS_READ_KEY=<metrics-dashboard-read-token> # unlocks the metrics API + dashboard
+NEXT_PUBLIC_ADMOB_DEFAULT_SLOT=<shared-slot-id>
 
-Copy [.env.template](.env.template) to `.env.local` (or `.env.development.local`) and fill in your local-only values. All `.env*` files are already gitignored, so `git add .` will skip them unless they were previously committed—run `git rm --cached <file>` if you ever need to untrack one.
+# Optional: Caching and limits
+RETAIL_LOOKUP_LIMIT=3
+RETAIL_LOOKUP_CACHE_TTL_MS=900000
+RETAIL_LOOKUP_CACHE_SIZE=256
 
-The retailer knobs work together to minimize SerpAPI spend: products emit a `retailLookupConfidence` score, low-confidence entries are dropped before lookup, canonical keys dedupe similar titles, hits are cached for `RETAIL_LOOKUP_CACHE_TTL_MS`, and the cache is capped via `RETAIL_LOOKUP_CACHE_SIZE` with LRU eviction. Adjust the thresholds to trade off freshness versus call volume; higher thresholds and shorter per-product link counts will further reduce traffic.
+# Optional: Metrics dashboard
+METRICS_READ_KEY=<metrics-dashboard-read-token>
+```
 
-To audit usage and AI costs, set `METRICS_READ_KEY` and visit `/diagnostics/metrics`. Paste the same key into the dashboard to pull a live snapshot (AI cache hits, payload clamps, token usage, ad impressions, etc.). Keys never leave the browser and can be revoked by rotating the env var.
+### Getting Amazon Product Advertising API Credentials
 
-Need help generating secrets? Run `npm run bootstrap:env`. The script copies `.env.template` to `.env.local` (if needed), auto-generates high-entropy `SESSION_SECRET` and `METRICS_READ_KEY` values when they are missing/placeholder, and prints them so you can add the same strings to Vercel. Secrets stay in gitignored files—nothing is committed.
+**This is REQUIRED for the app to work.** The app uses the official Amazon Product Advertising API to search for real products.
+
+#### Step 1: Join Amazon Associates Program
+1. Go to https://affiliate-program.amazon.com/
+2. Sign up for an Amazon Associates account
+3. You need to create content (blog, website, social media) and get approved
+4. Once approved, you'll get your **Associate Tag** (example: `yoursite-20`)
+
+#### Step 2: Request Product Advertising API Access
+1. Go to https://webservices.amazon.com/paapi5/documentation/
+2. Sign in with your Amazon Associates account
+3. Request access to Product Advertising API
+4. **Note**: You need an approved Associates account with qualifying activity before API access is granted
+
+#### Step 3: Generate Access Keys
+1. Once approved, go to your Product Advertising API dashboard
+2. Generate your **Access Key** and **Secret Key**
+3. Save these securely - you can't view the Secret Key again
+
+#### Step 4: Add to .env.local
+```dotenv
+AMAZON_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+AMAZON_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AMAZON_ASSOCIATE_TAG=yoursite-20
+```
+
+**Important**: Without these credentials, the app cannot search for products and will not work.
+
+Copy [.env.template](.env.template) to `.env.local` and fill in your values. All `.env*` files are gitignored.
+
+Need help generating secrets? Run `npm run bootstrap:env` to auto-generate `SESSION_SECRET` and `METRICS_READ_KEY` values.
 
 ### Managing secrets in Vercel
-1. Open Vercel → Project → **Settings → Environment Variables**.
-2. Add each key for every environment (`Production`, `Preview`, `Development`).
-3. Pull them locally with `vercel env pull .env.local` (requires the Vercel CLI) instead of copying secrets by hand.
+1. Open Vercel → Project → **Settings → Environment Variables**
+2. Add each key for every environment (`Production`, `Preview`, `Development`)
+3. Pull them locally with `vercel env pull .env.local`
 
-CLI alternative for scripting:
-
-```bash
-vercel env add GOOGLE_CLIENT_ID production
-vercel env add GOOGLE_CLIENT_ID preview
-vercel env add GOOGLE_CLIENT_ID development
-# repeat for the remaining variables
-```
-```
-
-> Until all required values (including `SERPAPI_KEY`) exist the app automatically remains in guest mode and API calls will fail rather than serving curated fallback data.
+> **Important**: The app requires Amazon Product Advertising API credentials to function. Without them, product search will fail and the app won't work.
 
 ## Scripts
 - `npm run dev` – Next.js dev server with Turbopack.
@@ -99,13 +135,12 @@ vercel env add GOOGLE_CLIENT_ID development
 ## API Surface
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/api/generate` | POST | Validate preferences/history and return a product payload (AI-only; fails fast when live providers are unavailable). |
-| `/api/scrape` | POST | Server-side scrape of allowlisted URLs with robots.txt checks. |
-| `/auth/google` | GET | Initiate Google OAuth (returns 501 until creds exist). |
-| `/auth/google/callback` | GET | Handle OAuth response, persist signed cookie session. |
-| `/auth/me` | GET | Return current session (guest or Google). |
-| `/auth/logout` | POST (pref) / GET | Clear cookies, emit `Clear-Site-Data`, and fall back to guest mode. |
-| `/api/data/erase` | POST | Clear in-memory caches + rate limit buckets as part of the privacy reset flow. |
+| `/api/generate` | POST | Search Amazon for real products and generate AI descriptions |
+| `/auth/google` | GET | Initiate Google OAuth |
+| `/auth/google/callback` | GET | Handle OAuth response, persist signed cookie session |
+| `/auth/me` | GET | Return current session (guest or Google) |
+| `/auth/logout` | POST / GET | Clear cookies and fall back to guest mode |
+| `/api/data/erase` | POST | Clear in-memory caches + rate limit buckets for privacy |
 
 ## Local Storage Schema
 - `user_id`, `session_id` – Derived from secure cookies for hydration.

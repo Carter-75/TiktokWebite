@@ -167,16 +167,61 @@ const productResponseJsonSchema = jsonSchemaConverter(
 export type ProductResponseShape = z.infer<typeof productResponseSchema>;
 
 export const buildProductPrompt = (
-  request: ProductGenerationRequest
+  request: ProductGenerationRequest,
+  amazonProducts?: Array<{title: string; url: string; price?: string; asin?: string}>
 ): { system: string; user: string; schema: JsonSchema; schemaName: string } => {
   const desired = Math.min(4, Math.max(2, request.resultsRequested ?? 2));
-  const system = `You generate concise shopping spotlights. Always return strictly valid JSON that matches the provided schema.
+  
+  // If we have real Amazon products, use description mode
+  if (amazonProducts && amazonProducts.length > 0) {
+    const system = `You are a product reviewer that creates detailed descriptions for REAL Amazon products. Always return strictly valid JSON that matches the provided schema.
+- You will be given actual Amazon products with real URLs and prices.
+- Your job is to describe these products with compelling summaries, pros/cons, and details.
+- DO NOT make up new products - ONLY describe the products provided to you.
+- Keep the exact Amazon URL provided - do not modify it.
+- Include a direct HTTPS mediaUrl for every product (use Unsplash or real Amazon product image URLs).
+- Keep copy under 320 characters per field.
+- Set retailLookupConfidence to 0.95 since these are real Amazon products.
+- Create engaging descriptions that highlight why someone would want to buy each product.`;
+
+    const user = JSON.stringify({
+      amazonProducts: amazonProducts.map(p => ({
+        title: p.title,
+        amazonUrl: p.url,
+        price: p.price,
+        asin: p.asin,
+      })),
+      preferences: request.preferences,
+      constraints: {
+        tokenLimit: 768,
+        resultsRequested: Math.min(desired, amazonProducts.length),
+      },
+    });
+
+    const normalizedSchema = stripUnsupportedFormats(
+      enforceRequiredProperties(resolveSchemaDefinition(productResponseJsonSchema, PRODUCT_RESPONSE_SCHEMA_NAME))
+    );
+
+    return {
+      system,
+      user,
+      schema: normalizedSchema,
+      schemaName: PRODUCT_RESPONSE_SCHEMA_NAME,
+    };
+  }
+  
+  // Fallback to original generation mode (should rarely be used)
+  const system = `You generate concise shopping spotlights for REAL products available for purchase today. Always return strictly valid JSON that matches the provided schema.
 - Produce exactly ${desired} distinct products per response.
-- Each product must reference a real item that can be purchased today.
-- Include a direct HTTPS mediaUrl for every product (brand press kit or royalty-free photo that visually matches the item).
+- Each product MUST be a real item that exists and can be purchased right now on Amazon.
+- For buyLinks, provide ACTUAL working Amazon URLs (e.g., https://www.amazon.com/dp/PRODUCTID or https://www.amazon.com/product-name/dp/PRODUCTID).
+- DO NOT use example.com, placeholder URLs, or non-Amazon retailers.
+- Focus on popular, well-reviewed products that are actually in stock on Amazon.
+- Include a direct HTTPS mediaUrl for every product (use Unsplash or real product image URLs).
 - Avoid duplicate titles or URLs across the products.
 - Keep copy under 320 characters per field.
-- Estimate how likely each product can be found at mainstream retailers using retailLookupConfidence (0 = obscure prototype, 1 = widely stocked). Favor confident matches when unsure.`;
+- Set retailLookupConfidence to 0.85-0.95 for mainstream Amazon products.
+- Focus on trending, popular, or innovative products that users would actually want to buy from Amazon.`;
   const user = JSON.stringify({
     preferences: request.preferences,
     searchTerms: request.searchTerms,

@@ -97,7 +97,7 @@ describe('/api/generate', () => {
     expect(second.status).toBe(429);
   });
 
-  it('surfaces 503 when provider fails', async () => {
+  it('returns 503 error when provider fails (no fallbacks)', async () => {
     vi.mocked(requestProductPage).mockRejectedValueOnce(new Error('boom'));
     const payload = {
       sessionId: 's1',
@@ -114,6 +114,7 @@ describe('/api/generate', () => {
     const res = await POST(makeRequest(payload));
     expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.error).toMatch(/unavailable/i);
+    expect(body.error).toBeDefined();
+    expect(body.details).toBe('boom');
   });
 });

@@ -12,6 +12,7 @@ import {
   type ProductResponseShape,
 } from '@/lib/ai/prompts';
 import { enrichProductsWithRetailers } from '@/lib/ai/linkEnricher';
+import { fetchRetailerListings } from '@/lib/catalog/liveRetailerLookup';
 
 const memoryCache = new Map<string, ProductGenerationResponse>();
 
@@ -273,6 +274,69 @@ const logProviderError = (error: unknown) => {
   console.error('[ai.provider] Unknown provider error', { error });
 };
 
+/**
+ * Search Amazon for real products using SERPAPI Amazon search
+ * Returns actual Amazon products with real URLs, prices, and ASINs
+ */
+const searchAmazonProducts = async (searchTerms: string[]): Promise<Array<{
+  title: string;
+  url: string;
+  price?: string;
+  asin?: string;
+}>> => {
+  console.log('[ai.amazon] Searching Amazon for real products:', searchTerms);
+  
+  const allProducts: Array<{title: string; url: string; price?: string; asin?: string}> = [];
+  const seenAsins = new Set<string>();
+  
+  // Use first search term or combine multiple terms for better results
+  const searchQuery = searchTerms.slice(0, 2).join(' ');
+  
+  try {
+    // Fetch more listings to ensure we have enough products
+    const listings = await fetchRetailerListings(searchQuery, 6);
+    console.log('[ai.amazon] Found', listings.length, 'Amazon products for:', searchQuery);
+    
+    for (const listing of listings) {
+      // Skip if missing essential data
+      if (!listing.title || !listing.asin) {
+        console.log('[ai.amazon] Skipping listing without title/ASIN');
+        continue;
+      }
+      
+      // Skip duplicates
+      if (seenAsins.has(listing.asin)) {
+        continue;
+      }
+      seenAsins.add(listing.asin);
+      
+      // Use real Amazon product data
+      allProducts.push({
+        title: listing.title,
+        url: listing.url,
+        price: listing.priceHint,
+        asin: listing.asin,
+      });
+      
+      // Limit to 4 products max
+      if (allProducts.length >= 4) {
+        break;
+      }
+    }
+  } catch (error) {
+    console.error('[ai.amazon] Failed to search Amazon:', error);
+    throw new Error(`Amazon search failed: ${(error as Error).message}`);
+  }
+  
+  if (allProducts.length === 0) {
+    throw new Error('No Amazon products found for search terms');
+  }
+  
+  console.log('[ai.amazon] Returning', allProducts.length, 'unique Amazon products');
+  console.log('[ai.amazon] Sample product:', allProducts[0]?.title, allProducts[0]?.asin);
+  return allProducts;
+};
+
 export const requestProductPage = async (
   request: ProductGenerationRequest,
   opts?: { forceNovelty?: boolean }
@@ -295,10 +359,26 @@ export const requestProductPage = async (
     return { response: memoryCache.get(cacheKey)!, cacheHit: true };
   }
 
-  const { system, user, schema, schemaName } = buildProductPrompt(normalizedRequest);
+  // STEP 1: Search Amazon for real products first
+  console.log('[ai.workflow] STEP 1: Searching Amazon for real products');
+  const amazonProducts = await searchAmazonProducts(normalizedRequest.searchTerms);
+  
+  if (amazonProducts.length === 0) {
+    console.error('[ai.workflow] No Amazon products found, cannot proceed');
+    throw new Error('No Amazon products found for search terms');
+  }
+  
+  console.log('[ai.workflow] Found', amazonProducts.length, 'real Amazon products');
+  console.log('[ai.workflow] Sample:', amazonProducts[0]);
+
+  // STEP 2: Have AI describe the real Amazon products
+  console.log('[ai.workflow] STEP 2: Having AI describe the real products');
+  const { system, user, schema, schemaName } = buildProductPrompt(normalizedRequest, amazonProducts);
   const openAiClient = buildOpenAIClient();
   const targetModel = process.env.AI_PROVIDER_MODEL ?? 'gpt-4o-mini';
   try {
+    console.log('[ai.client] Requesting AI descriptions for', amazonProducts.length, 'real products');
+    
     recordMetric('ai.call_attempt', { provider: 'openai', count: desiredResults });
     const aiResponse = await invokeStructuredResponse(openAiClient, {
       model: targetModel,
@@ -334,8 +414,31 @@ export const requestProductPage = async (
     }
 
     const sanitizedProducts = validated.products.slice(0, desiredResults).map(sanitizeProduct);
-    const enrichedProducts = await enrichProductsWithRetailers(sanitizedProducts);
-    const mediaSafeProducts = await Promise.all(enrichedProducts.map(ensureProductMedia));
+    console.log('[ai.client] AI described', sanitizedProducts.length, 'products');
+    
+    // No need to enrich with retailers since we already have real Amazon products
+    // Just ensure the Amazon links are present in buyLinks
+    const productsWithLinks = sanitizedProducts.map((product, index) => {
+      const amazonProduct = amazonProducts[index];
+      if (!amazonProduct) return product;
+      
+      // Ensure the real Amazon link is in buyLinks
+      const hasAmazonLink = product.buyLinks.some(link => link.url === amazonProduct.url);
+      if (!hasAmazonLink) {
+        product.buyLinks.unshift({
+          label: 'Amazon',
+          url: amazonProduct.url,
+          priceHint: amazonProduct.price,
+          trusted: true,
+        });
+      }
+      
+      return product;
+    });
+    
+    console.log('[ai.workflow] Products ready with real Amazon links');
+    
+    const mediaSafeProducts = await Promise.all(productsWithLinks.map(ensureProductMedia));
 
     if (mediaSafeProducts.length < desiredResults) {
       throw new Error('AI payload missing product entries');
@@ -354,7 +457,7 @@ export const requestProductPage = async (
     const sanitizedBytes = new TextEncoder().encode(JSON.stringify(parsed)).length;
     recordMetric('ai.response_sanitized_bytes', {
       bytes: sanitizedBytes,
-      products: enrichedProducts.length,
+      products: mediaSafeProducts.length,
     });
     memoryCache.set(cacheKey, parsed);
     recordMetric('ai.call_success', { provider: 'openai', count: mediaSafeProducts.length });
