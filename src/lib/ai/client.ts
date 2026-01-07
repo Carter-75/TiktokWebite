@@ -326,7 +326,11 @@ const searchAmazonProducts = async (searchTerms: string[]): Promise<Array<{
       }
     }
   } catch (error) {
-    console.error('[ai.amazon] Failed to search Amazon:', error);
+    productLogger.error('Failed to search Amazon', {
+      error: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      searchQuery,
+    });
     throw new Error(`Amazon search failed: ${(error as Error).message}`);
   }
   
@@ -334,8 +338,11 @@ const searchAmazonProducts = async (searchTerms: string[]): Promise<Array<{
     throw new Error('No Amazon products found for search terms');
   }
   
-  console.log('[ai.amazon] Returning', allProducts.length, 'unique Amazon products');
-  console.log('[ai.amazon] Sample product:', allProducts[0]?.title, allProducts[0]?.asin);
+  productLogger.info('Returning unique Amazon products', {
+    count: allProducts.length,
+    sampleTitle: allProducts[0]?.title,
+    sampleAsin: allProducts[0]?.asin,
+  });
   return allProducts;
 };
 

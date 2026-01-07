@@ -3,6 +3,9 @@
 import { useMemo, useState } from 'react';
 
 import type { ProductContent } from '@/types/product';
+import { createLogger } from '@/lib/logger';
+
+const diagnosticsLogger = createLogger('Diagnostics');
 
 type FeedDiagnosticsProps = {
   authStatus: string;
@@ -72,7 +75,10 @@ const FeedDiagnostics = ({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.warn('[diagnostics] failed to copy snapshot', error);
+      diagnosticsLogger.warn('failed to copy snapshot', {
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
     }
   };
 

@@ -5,6 +5,7 @@ import { requestProductPage } from '@/lib/ai/client';
 import { staticProducts } from '@/lib/data/staticProducts';
 import { recordMetric } from '@/lib/metrics/collector';
 import { enforceRateLimit, RateLimitError } from '@/lib/server/rateLimit';
+import { aiLogger } from '@/lib/logger';
 
 const payloadSchema = z.object({
   sessionId: z.string(),
@@ -93,7 +94,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ...response, cacheHit });
   } catch (error) {
     // NO FALLBACKS - Show clear error so you know when things break
-    console.error('[api.generate] AI provider failed - NO FALLBACK', error);
+    aiLogger.error('AI provider failed - NO FALLBACK', {
+      error: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
     
     recordMetric('api.generate', {
       failed: true,

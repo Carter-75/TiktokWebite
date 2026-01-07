@@ -31,7 +31,7 @@ export const useAuthClient = () => {
       setSession(json.session);
       setStatus('ready');
     } catch (error) {
-      authLogger.error('Failed to load session', {
+      authLogger.error('failed to load session', {
         error: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
       });

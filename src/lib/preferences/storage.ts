@@ -7,7 +7,9 @@ import {
   UserSettings,
 } from '@/types/preferences';
 import type { ProductContent } from '@/types/product';
-import { uiLogger } from '@/lib/logger';
+import { uiLogger, createLogger } from '@/lib/logger';
+
+const storageLogger = createLogger('Storage');
 
 export const STORAGE_KEYS = {
   userId: 'user_id',
@@ -178,7 +180,10 @@ export const persistUserSettings = (settings: UserSettings) => {
     const retained = applyHistoryRetention(hydratedHistory, settings.historyRetentionMode);
     localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(retained));
   } catch (error) {
-    console.warn('[storage] unable to reapply history retention', error);
+    storageLogger.warn('unable to reapply history retention', {
+      error: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
   }
 };
 

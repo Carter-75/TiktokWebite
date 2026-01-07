@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 
 import { exchangeCodeForTokens, fetchGoogleProfile, isGoogleConfigured } from '@/lib/auth/google';
 import { consumeStateCookie, persistSession } from '@/lib/auth/session';
+import { authLogger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   if (!isGoogleConfigured()) {
@@ -30,7 +31,10 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.redirect(new URL('/', request.url));
   } catch (error) {
-    console.error('[auth] google callback failed', error);
+    authLogger.error('google callback failed', {
+      error: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.redirect(new URL('/?auth=error', request.url));
   }
 }

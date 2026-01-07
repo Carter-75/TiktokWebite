@@ -40,7 +40,10 @@ const decode = (value: string): SessionState | null => {
   try {
     const [payload, signature] = value.split('.');
     if (!payload || !signature) return null;
-    if (sign(payload) !== signature) return null;
+    if (sign(payload) !== signature) {
+      authLogger.warn('Invalid session signature');
+      return null;
+    }
     const json = Buffer.from(payload, 'base64url').toString('utf8');
     return JSON.parse(json) as SessionState;
   } catch (error) {

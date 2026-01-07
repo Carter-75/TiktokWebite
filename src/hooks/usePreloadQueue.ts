@@ -6,7 +6,9 @@ import { useToast } from '@/hooks/useToast';
 import { loadPreloadQueue, persistPreloadQueue } from '@/lib/preferences/storage';
 import { GenerateApiRequest, GenerateApiResponse } from '@/types/api';
 import { ProductContent } from '@/types/product';
-import { productLogger, networkLogger } from '@/lib/logger';
+import { productLogger, networkLogger, createLogger } from '@/lib/logger';
+
+const preloadLogger = createLogger('Preload');
 
 const detectAutomationMode = () =>
   process.env.NEXT_PUBLIC_E2E === 'true' ||
@@ -16,8 +18,7 @@ const detectAutomationMode = () =>
 const DEBUG_ENABLED = process.env.NODE_ENV !== 'production';
 const debugLog = (...args: unknown[]) => {
   if (!DEBUG_ENABLED) return;
-  // eslint-disable-next-line no-console
-  console.info('[preload]', ...args);
+  preloadLogger.debug(args.join(' '));
 };
 
 const DESIRED_QUEUE_LENGTH = 5;

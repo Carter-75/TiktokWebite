@@ -22,7 +22,7 @@ import { AdPlacement, hasAdMobConfig } from '@/lib/ads/loader';
 import { deriveSearchWeights, mergeSearchIntoPreferences, Interaction } from '@/lib/feed/engine';
 import { eraseAllLocalState } from '@/lib/preferences/storage';
 import { ProductContent } from '@/types/product';
-import { adLogger } from '@/lib/logger';
+import { adLogger, uiLogger } from '@/lib/logger';
 
 const SUPPRESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 const SUPPRESSION_MAX_ATTEMPTS = 5;
@@ -443,7 +443,10 @@ const FeedShell = () => {
       refresh();
       pushToast({ tone: 'success', message: 'All local data cleared. Starting fresh.' });
     } catch (error) {
-      console.error('[feed] failed to erase data', error);
+      uiLogger.error('failed to erase data', {
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       pushToast({ tone: 'danger', message: 'Unable to clear data. Please try again.' });
     } finally {
       setIsErasing(false);

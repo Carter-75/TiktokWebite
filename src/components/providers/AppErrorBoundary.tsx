@@ -1,6 +1,9 @@
 'use client';
 
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { createLogger } from '@/lib/logger';
+
+const appLogger = createLogger('App');
 
 type Props = {
   children: ReactNode;
@@ -18,7 +21,11 @@ class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[app] Uncaught error', error, info);
+    appLogger.error('Uncaught error', {
+      error: error.message,
+      errorStack: error.stack,
+      componentStack: info.componentStack,
+    });
   }
 
   handleReset = () => {
