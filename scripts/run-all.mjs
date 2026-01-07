@@ -364,7 +364,7 @@ const runDiagnosticsPipeline = async () => {
   });
 
   await step('Lint', async () => {
-    await runNpm(['run', 'lint', '--', '--max-warnings=0']);
+    await exec(npmRunnerCommand, npmRunnerArgs(['run', 'lint']), {
   });
 
   await step('Unit tests', async () => {
