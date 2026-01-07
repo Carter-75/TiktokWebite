@@ -13,7 +13,7 @@ const nextConfig = {
     ],
   },
   async headers() {
-    const scriptSrc = ["'self'", 'https://pagead2.googlesyndication.com', 'https://securepubads.g.doubleclick.net'];
+    const scriptSrc = ["'self'", 'https://pagead2.googlesyndication.com', 'https://securepubads.g.doubleclick.net', 'https://va.vercel-scripts.com'];
     if (allowInlineScripts) {
       scriptSrc.push("'unsafe-inline'");
     }
@@ -24,6 +24,7 @@ const nextConfig = {
       'https://pagead2.googlesyndication.com',
       'https://googleads.g.doubleclick.net',
       'https://securepubads.g.doubleclick.net',
+      'https://va.vercel-scripts.com',
     ];
     const frameSrc = [
       "'self'",
