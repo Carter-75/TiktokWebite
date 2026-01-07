@@ -273,7 +273,7 @@ const logProviderError = (error: unknown) => {
     return;
   }
 
-  logAIError('provider', 'Unknown provider error', { error: String(error) });
+  logAIError('provider', 'Unknown provider error', { error: new Error(String(error)ring(error)) });
 };
 
 /**
