@@ -54,12 +54,7 @@ const makeAutomationProduct = (): ProductContent => ({
 
 const hasWindow = () => typeof window !== 'undefined';
 
-type QueueOptions = {
-  diagnosticsEnabled?: boolean;
-};
-
-export const usePreloadQueue = (payload: GenerateApiRequest, options?: QueueOptions) => {
-  const diagnosticsEnabled = options?.diagnosticsEnabled ?? false;
+export const usePreloadQueue = (payload: GenerateApiRequest) => {
   const initialQueue = useMemo(() => (hasWindow() ? loadPreloadQueue() : []), []);
   const automationEnabled = detectAutomationMode();
   const [queue, setQueue] = useState<ProductContent[]>(() =>
@@ -157,10 +152,19 @@ export const usePreloadQueue = (payload: GenerateApiRequest, options?: QueueOpti
         let errorMessage = `Unable to generate product (${res.status})`;
         if (contentType.includes('application/json')) {
           try {
-            const errorJson = (await res.json()) as { error?: string };
-            if (typeof errorJson?.error === 'string') {
-              errorMessage = errorJson.error;
+            const errorJson = (await res.json()) as { error?: string; code?: string; details?: string };
+            const friendly = typeof errorJson?.error === 'string' ? errorJson.error : null;
+            const code = typeof errorJson?.code === 'string' ? errorJson.code : null;
+            const details = typeof errorJson?.details === 'string' ? errorJson.details : null;
+            if (code || details) {
+              networkLogger.error('Generate API returned an error', {
+                status: res.status,
+                code,
+                details,
+                friendly,
+              });
             }
+            errorMessage = friendly ?? errorMessage;
           } catch {
             // ignore JSON parse issues and fall back to default message
           }
@@ -169,11 +173,19 @@ export const usePreloadQueue = (payload: GenerateApiRequest, options?: QueueOpti
             const errorText = (await res.text()).trim();
             if (errorText) {
               errorMessage = errorText;
+              networkLogger.error('Generate API returned text error', {
+                status: res.status,
+                errorText,
+              });
             }
           } catch {
             // ignore
           }
         }
+        networkLogger.error('Generate API request failed', {
+          status: res.status,
+          message: errorMessage,
+        });
         throw new Error(errorMessage);
       }
       const json = (await res.json()) as GenerateApiResponse;
@@ -198,16 +210,13 @@ export const usePreloadQueue = (payload: GenerateApiRequest, options?: QueueOpti
       rateLimitResetRef.current = 0;
       setLastError(message);
       setStatus('retrying');
-      const toastMessage = diagnosticsEnabled
-        ? `${message}. Showing saved picks while we retry.`
-        : 'We can’t fetch new drops right now. Showing saved picks while we retry.';
-      notify('generate-error', 'danger', toastMessage);
+      notify('generate-error', 'danger', 'We can’t fetch new drops right now. Showing saved picks while we retry.');
       debugLog('fetch:error', { message });
       return null;
     } finally {
       setLoading(false);
     }
-  }, [payload, notify, automationEnabled, diagnosticsEnabled]);
+  }, [payload, notify, automationEnabled]);
 
   const ensureFilled = useCallback(async () => {
     const scheduleRateLimitRetry = (delayMs: number) => {

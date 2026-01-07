@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AuthBadge from '@/components/AuthBadge';
 import GuestModeNotice from '@/components/GuestModeNotice';
 import FeedErrorCard from '@/components/FeedErrorCard';
-import FeedDiagnostics from '@/components/FeedDiagnostics';
 import InlineAd from '@/components/InlineAd';
 import LoaderSkeleton from '@/components/LoaderSkeleton';
 import PreferencesPanel from '@/components/PreferencesPanel';
@@ -68,12 +67,8 @@ const FeedShell = () => {
     [session, mergedPreferences, searchTerms, lastViewed]
   );
 
-  const isDiagnosticsUser = (session?.email ?? '').toLowerCase() === 'cartermoyer75@gmail.com';
-
-  const { queue, consumeNext, loading, status: queueStatus, lastError, isOffline, refresh } = usePreloadQueue(
-    generationPayload,
-    { diagnosticsEnabled: isDiagnosticsUser }
-  );
+  const { queue, consumeNext, loading, status: queueStatus, lastError, isOffline, refresh } =
+    usePreloadQueue(generationPayload);
   const queueLength = queue.length;
 
   useEffect(() => {
@@ -334,54 +329,16 @@ const FeedShell = () => {
   const loaderStatus = queueStatus === 'retrying' ? 'Recovering product queue…' : 'Pairing contenders…';
   const cachedFallbackMessage = 'Showing saved picks from this device while systems reset.';
   const emptyFallbackMessage = 'Fresh contenders are lining up—hang tight.';
-  const genericErrorMessage = hasCachedDeck ? cachedFallbackMessage : emptyFallbackMessage;
-  const displayableError = isDiagnosticsUser ? lastError : lastError ? genericErrorMessage : null;
-  const loaderDetail = displayableError
-    ? displayableError
-    : authStatus !== 'ready'
+  const fallbackLoaderMessage = hasCachedDeck ? cachedFallbackMessage : emptyFallbackMessage;
+  const loaderDetail =
+    authStatus !== 'ready'
       ? 'Syncing session and preferences before loading the deck.'
       : isOffline
         ? 'Offline mode: serving cached drops until connection resumes.'
-        : 'Hydrating the deck and tuning tag weights.';
-  const blockingMessage = isOffline
-    ? 'You appear to be offline. Reconnect to load fresh contenders.'
-    : displayableError;
-  const showErrorCard = isDiagnosticsUser && showLoader && !loading && Boolean(blockingMessage);
-
-  const diagnostics = useMemo(
-    () => ({
-      authStatus,
-      queueStatus,
-      queueLength,
-      lastError,
-      isOffline,
-      sessionMode: session?.mode ?? 'guest',
-      activeSearch,
-      currentProductId: currentProduct?.id ?? null,
-      compareProductId: compareProduct?.id ?? null,
-    }),
-    [
-      authStatus,
-      queueStatus,
-      queueLength,
-      lastError,
-      isOffline,
-      session?.mode,
-      activeSearch,
-      currentProduct?.id,
-      compareProduct?.id,
-    ]
-  );
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const globalWindow = window as typeof window & { __feedDiagnostics?: unknown };
-    if (isDiagnosticsUser) {
-      globalWindow.__feedDiagnostics = diagnostics;
-    } else if ('__feedDiagnostics' in globalWindow) {
-      delete globalWindow.__feedDiagnostics;
-    }
-  }, [diagnostics, isDiagnosticsUser]);
+        : fallbackLoaderMessage;
+  const blockingMessage = isOffline ? 'You appear to be offline. Reconnect to load fresh contenders.' : null;
+  const showErrorCard = showLoader && !loading && Boolean(blockingMessage);
+  const statusBannerMessage = isOffline ? 'Offline mode: serving cached drops.' : fallbackLoaderMessage;
 
   const renderSlot = (
     label: string,
@@ -488,9 +445,7 @@ const FeedShell = () => {
 
       {(lastError || isOffline || queueStatus === 'retrying') && (
         <div className="feed-shell__status" role="status">
-          {isOffline
-            ? 'Offline mode: serving cached drops.'
-            : displayableError ?? 'Recovering the feed…'}
+          {statusBannerMessage}
         </div>
       )}
 
@@ -512,8 +467,7 @@ const FeedShell = () => {
                 onShowDiagnostics={() => setPanelOpen(true)}
                 busy={queueStatus === 'loading'}
                 isOffline={isOffline}
-                showDiagnostics={isDiagnosticsUser}
-                showGuidance={isDiagnosticsUser}
+                showDiagnostics={false}
               />
             ) : (
               <LoaderSkeleton status={loaderStatus} detail={loaderDetail} />
@@ -543,19 +497,6 @@ const FeedShell = () => {
         </div>
         <div className="feed-shell__secondary">
           <SidebarAd />
-          {isDiagnosticsUser && (
-            <FeedDiagnostics
-              authStatus={authStatus}
-              queueStatus={queueStatus}
-              queueLength={queueLength}
-              lastError={lastError}
-              isOffline={isOffline}
-              sessionMode={session?.mode}
-              activeSearch={activeSearch}
-              currentProduct={currentProduct}
-              compareProduct={compareProduct}
-            />
-          )}
         </div>
       </div>
 

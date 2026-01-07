@@ -98,18 +98,35 @@ export async function POST(request: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
       errorStack: error instanceof Error ? error.stack : undefined,
     });
-    
+
+    const rawMessage = error instanceof Error ? error.message ?? 'unknown' : String(error ?? 'unknown');
+    const normalized = rawMessage.toLowerCase();
+    let errorCode: string | undefined;
+    let clientMessage = 'Product generation failed. Check console for details.';
+
+    if (normalized.includes('amazon_credentials_missing')) {
+      errorCode = 'amazon_credentials_missing';
+      clientMessage = 'Amazon Product Advertising API credentials are missing. Add AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, and AMAZON_ASSOCIATE_TAG to .env.local, then restart the server.';
+    } else if (normalized.includes('amazon_no_results')) {
+      errorCode = 'amazon_no_results';
+      clientMessage = 'Amazon search returned no products for this request. Adjust the query or try again later.';
+    } else if (normalized.includes('amazon search failed')) {
+      errorCode = 'amazon_search_failed';
+      clientMessage = 'Amazon product lookup failed. Double-check your Amazon API configuration or try again shortly.';
+    }
+
     recordMetric('api.generate', {
       failed: true,
-      reason: (error as Error).message || 'unknown',
+      reason: errorCode ?? rawMessage ?? 'unknown',
     });
-    
+
     return NextResponse.json(
-      { 
-        error: 'Product generation failed. Check console for details.',
-        details: (error as Error).message,
-        stack: process.env.NODE_ENV === 'development' ? (error as Error).stack : undefined
-      }, 
+      {
+        error: clientMessage,
+        code: errorCode,
+        details: rawMessage,
+        stack: process.env.NODE_ENV === 'development' ? (error as Error).stack : undefined,
+      },
       { status: 503 }
     );
   }
