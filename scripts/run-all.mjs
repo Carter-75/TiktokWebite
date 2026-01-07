@@ -364,7 +364,7 @@ const runDiagnosticsPipeline = async () => {
   });
 
   await step('Lint', async () => {
-    await runNpm(['lint']);
+    await runNpm(['run', 'lint']);
   });
 
   await step('Build', async () => {
