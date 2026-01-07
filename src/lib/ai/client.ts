@@ -447,7 +447,7 @@ export const requestProductPage = async (
       return product;
     });
     
-    productLogger.success('Products ready with real Amazon links', { count: products.length });
+    productLogger.success('Products ready with real Amazon links', { count: productsWithLinks.length });
     
     const mediaSafeProducts = await Promise.all(productsWithLinks.map(ensureProductMedia));
 
