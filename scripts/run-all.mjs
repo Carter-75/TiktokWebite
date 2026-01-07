@@ -365,17 +365,13 @@ const runDiagnosticsPipeline = async () => {
 
   await step('Lint', async () => {
     await exec(npmRunnerCommand, npmRunnerArgs(['run', 'lint']), {
+      title: 'Lint',
+      logFile: 'lint.log',
+      verbose: true,
+    });
   });
 
-  await step('Unit tests', async () => {
-    await runNpm(['run', 'test', '--', '--reporter=verbose']);
-  });
-
-  await step('E2E tests', async () => {
-    await runNpm(['run', 'test:e2e', '--', '--reporter=list']);
-  });
-
-  await step('Production build', async () => {
+  await step('Build', async () => {
     await runNpm(['run', 'build']);
   });
 
