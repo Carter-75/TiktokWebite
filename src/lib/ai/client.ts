@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import OpenAI from 'openai';
 import type { Response as OpenAIResponsePayload } from 'openai/resources/responses/responses';
 
+import { buildFallbackMediaUrl } from '@/lib/media/fallback';
 import { recordMetric } from '@/lib/metrics/collector';
 import { ProductGenerationRequest, ProductGenerationResponse, ProductContent } from '@/types/product';
 import {
@@ -46,13 +47,96 @@ const clampConfidence = (value?: number | null) => {
   return Number(Math.min(1, Math.max(0, value)).toFixed(3));
 };
 
-const deriveMediaUrl = (product: ProductContent) => {
-  if (product.mediaUrl?.startsWith('http')) {
-    return product.mediaUrl;
+const MEDIA_PROBE_TIMEOUT_MS = (() => {
+  const parsed = Number(process.env.MEDIA_PROBE_TIMEOUT_MS ?? 2500);
+  if (!Number.isFinite(parsed)) {
+    return 2500;
   }
-  const keywords = [product.title, ...product.tags.map((tag) => tag.label)].filter(Boolean).join(',');
-  const query = encodeURIComponent(keywords || 'modern product gadget');
-  return `https://source.unsplash.com/featured/900x600?${query}`;
+  return Math.min(7000, Math.max(500, parsed));
+})();
+
+const IMAGE_EXTENSION_REGEX = /\.(?:apng|avif|gif|jpe?g|jfif|pjpeg|pjp|png|svg|webp|heic|heif)(?:\?.*)?$/i;
+
+const normalizeMediaUrl = (value?: string | null) => (typeof value === 'string' && value.startsWith('http') ? value : undefined);
+
+const isImageMime = (value?: string | null) => typeof value === 'string' && value.toLowerCase().startsWith('image/');
+
+const hasImageExtension = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    return IMAGE_EXTENSION_REGEX.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+};
+
+const fetchWithTimeout = async (url: string, init: RequestInit): Promise<Response> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MEDIA_PROBE_TIMEOUT_MS);
+  (timer as unknown as { unref?: () => void }).unref?.();
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const probeRemoteImage = async (url: string): Promise<boolean> => {
+  if (typeof fetch !== 'function') {
+    return true;
+  }
+
+  try {
+    const headResponse = await fetchWithTimeout(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      cache: 'no-store',
+    });
+    if (headResponse.ok) {
+      const contentType = headResponse.headers.get('content-type');
+      return isImageMime(contentType) || (!contentType && hasImageExtension(url));
+    }
+
+    if ([403, 405, 406, 500, 501].includes(headResponse.status)) {
+      const probeResponse = await fetchWithTimeout(url, {
+        method: 'GET',
+        headers: {
+          Range: 'bytes=0-0',
+          Accept: 'image/*',
+        },
+        redirect: 'follow',
+        cache: 'no-store',
+      });
+      if (probeResponse.ok) {
+        const contentType = probeResponse.headers.get('content-type');
+        return isImageMime(contentType) || hasImageExtension(url);
+      }
+    }
+  } catch (error) {
+    if ((error as Error).name !== 'AbortError') {
+      recordMetric('ai.media_probe_error', { reason: (error as Error).message ?? 'unknown' });
+    }
+  }
+
+  return false;
+};
+
+const ensureProductMedia = async (product: ProductContent): Promise<ProductContent> => {
+  const normalized = normalizeMediaUrl(product.mediaUrl);
+  if (normalized) {
+    const valid = await probeRemoteImage(normalized);
+    if (valid) {
+      return product;
+    }
+    recordMetric('ai.media_fallback_applied', { reason: 'invalid_remote' });
+  } else {
+    recordMetric('ai.media_fallback_applied', { reason: 'missing_remote' });
+  }
+
+  return {
+    ...product,
+    mediaUrl: buildFallbackMediaUrl(product),
+  };
 };
 
 const sanitizeProduct = (product: ProductContent): ProductContent => {
@@ -71,7 +155,7 @@ const sanitizeProduct = (product: ProductContent): ProductContent => {
     tags: trimmedTags,
     buyLinks: trimmedBuyLinks,
     noveltyScore: Number(Math.min(1, Math.max(0, product.noveltyScore)).toFixed(2)),
-    mediaUrl: deriveMediaUrl(product),
+    mediaUrl: normalizeMediaUrl(product.mediaUrl),
     retailLookupConfidence: clampConfidence(product.retailLookupConfidence),
   };
 };
@@ -99,6 +183,19 @@ const buildOpenAIClient = () => {
 };
 
 type OpenAIResponse = OpenAIResponsePayload;
+
+type ResponsesClient = OpenAI['responses'];
+
+const invokeStructuredResponse = async (
+  client: OpenAI,
+  params: Parameters<ResponsesClient['create']>[0]
+): Promise<OpenAIResponse> => {
+  const responses = client.responses as Partial<ResponsesClient> & { create: ResponsesClient['create'] };
+  if (typeof responses.parse === 'function') {
+    return (responses.parse as ResponsesClient['parse'])(params as Parameters<ResponsesClient['parse']>[0]) as Promise<OpenAIResponse>;
+  }
+  return responses.create(params) as Promise<OpenAIResponse>;
+};
 
 const extractResponsePayload = (response: OpenAIResponse): unknown => {
   const textSegments: string[] = Array.isArray(response.output_text)
@@ -203,7 +300,7 @@ export const requestProductPage = async (
   const targetModel = process.env.AI_PROVIDER_MODEL ?? 'gpt-4o-mini';
   try {
     recordMetric('ai.call_attempt', { provider: 'openai', count: desiredResults });
-    const aiResponse = await openAiClient.responses.parse({
+    const aiResponse = await invokeStructuredResponse(openAiClient, {
       model: targetModel,
       instructions: system,
       input: user,
@@ -217,7 +314,7 @@ export const requestProductPage = async (
     });
 
     const structuredPayload =
-      (aiResponse.output_parsed as ProductResponseShape | null) ??
+      ((aiResponse as OpenAIResponse & { output_parsed?: unknown }).output_parsed as ProductResponseShape | null) ??
       (extractResponsePayload(aiResponse) as ProductResponseShape);
     const payloadText = JSON.stringify(structuredPayload);
     const payloadBytes = new TextEncoder().encode(payloadText).length;
@@ -238,8 +335,9 @@ export const requestProductPage = async (
 
     const sanitizedProducts = validated.products.slice(0, desiredResults).map(sanitizeProduct);
     const enrichedProducts = await enrichProductsWithRetailers(sanitizedProducts);
+    const mediaSafeProducts = await Promise.all(enrichedProducts.map(ensureProductMedia));
 
-    if (enrichedProducts.length < desiredResults) {
+    if (mediaSafeProducts.length < desiredResults) {
       throw new Error('AI payload missing product entries');
     }
 
@@ -250,7 +348,7 @@ export const requestProductPage = async (
       completionTokens: validated.debug?.completionTokens ?? aiResponse.usage?.output_tokens,
     };
     const parsed: ProductGenerationResponse = {
-      products: enrichedProducts,
+      products: mediaSafeProducts,
       debug: debugInfo,
     };
     const sanitizedBytes = new TextEncoder().encode(JSON.stringify(parsed)).length;
@@ -259,7 +357,7 @@ export const requestProductPage = async (
       products: enrichedProducts.length,
     });
     memoryCache.set(cacheKey, parsed);
-    recordMetric('ai.call_success', { provider: 'openai', count: enrichedProducts.length });
+    recordMetric('ai.call_success', { provider: 'openai', count: mediaSafeProducts.length });
     return { response: parsed, cacheHit: false };
   } catch (error) {
     logProviderError(error);

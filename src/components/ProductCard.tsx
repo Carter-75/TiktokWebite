@@ -1,5 +1,6 @@
 import Image from 'next/image';
 
+import { buildFallbackMediaUrl } from '@/lib/media/fallback';
 import { ProductContent } from '@/types/product';
 
 type Props = {
@@ -7,14 +8,9 @@ type Props = {
   variant?: 'primary' | 'comparison';
 };
 
-const buildFallbackMedia = (product: ProductContent) => {
-  const keywords = [product.title, ...product.tags.map((tag) => tag.label)].filter(Boolean).join(',');
-  const query = encodeURIComponent(keywords || 'modern gadget');
-  return `https://source.unsplash.com/featured/900x600?${query}`;
-};
-
 const ProductCard = ({ product, variant = 'primary' }: Props) => {
-  const mediaUrl = product.mediaUrl ?? buildFallbackMedia(product);
+  const fallbackMedia = buildFallbackMediaUrl(product);
+  const mediaUrl = product.mediaUrl ?? fallbackMedia;
   return (
     <article className={`product-card product-card--${variant}`} data-testid="product-card" data-variant={variant}>
       <figure className="product-card__media" aria-hidden={!mediaUrl}>
@@ -30,7 +26,7 @@ const ProductCard = ({ product, variant = 'primary' }: Props) => {
             const target = event.currentTarget;
             if (target.dataset.fallbackApplied === 'true') return;
             target.dataset.fallbackApplied = 'true';
-            target.src = buildFallbackMedia(product);
+            target.src = fallbackMedia;
           }}
         />
       </figure>

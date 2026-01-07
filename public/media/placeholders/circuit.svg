@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600" role="img" aria-labelledby="title desc">
+  <title>Cyber circuit placeholder</title>
+  <desc>Geometric circuit inspired fallback artwork.</desc>
+  <defs>
+    <linearGradient id="circuit-bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f0c29" />
+      <stop offset="25%" stop-color="#302b63" />
+      <stop offset="100%" stop-color="#24243e" />
+    </linearGradient>
+    <linearGradient id="circuit-lines" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#12c2e9" />
+      <stop offset="100%" stop-color="#c471ed" />
+    </linearGradient>
+  </defs>
+  <rect width="900" height="600" rx="48" fill="url(#circuit-bg)" />
+  <g stroke="url(#circuit-lines)" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.5">
+    <path d="M120 180h200v120h120v200" />
+    <path d="M780 120v160h-160v160h-140" />
+    <path d="M260 520v-160h160" />
+    <path d="M640 420v-120h140" />
+  </g>
+  <g fill="rgba(255,255,255,0.08)">
+    <circle cx="180" cy="120" r="32" />
+    <circle cx="720" cy="480" r="42" />
+    <circle cx="640" cy="220" r="24" />
+  </g>
+  <text x="64" y="520" font-family="'Segoe UI', 'Helvetica Neue', sans-serif" font-size="48" fill="rgba(255,255,255,0.75)">
+    Future Goods
+  </text>
+</svg>

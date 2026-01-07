@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600" role="img" aria-labelledby="title desc">
+  <title>Gradient aurora placeholder</title>
+  <desc>Soft aurora gradient used as a fallback product image.</desc>
+  <defs>
+    <linearGradient id="aurora" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4b6cb7" />
+      <stop offset="50%" stop-color="#182848" />
+      <stop offset="100%" stop-color="#0f2027" />
+    </linearGradient>
+    <radialGradient id="glow" cx="70%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.35)" />
+      <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+    </radialGradient>
+  </defs>
+  <rect width="900" height="600" rx="48" fill="url(#aurora)" />
+  <circle cx="600" cy="160" r="260" fill="url(#glow)" />
+  <circle cx="200" cy="520" r="200" fill="rgba(255,255,255,0.08)" />
+  <text x="64" y="520" font-family="'Segoe UI', 'Helvetica Neue', sans-serif" font-size="48" fill="rgba(255,255,255,0.7)">
+    Product Pulse
+  </text>
+</svg>

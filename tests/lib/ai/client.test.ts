@@ -33,6 +33,64 @@ const baseRequest: ProductGenerationRequest = {
 
 const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
+const queueSuccessfulAiResponse = () => {
+  const iso = new Date().toISOString();
+  mockResponsesCreate.mockResolvedValueOnce({
+    id: 'resp_123',
+    output_text: [
+      JSON.stringify({
+        products: [
+          {
+            id: 'remote-1',
+            title: 'Remote Product One',
+            summary: 'Remote summary',
+            whatItIs: 'Remote item',
+            whyUseful: 'Remote usefulness',
+            priceRange: { min: 99, max: 129, currency: 'USD' },
+            pros: ['Pro one', 'Pro two'],
+            cons: ['Con one'],
+            tags: [{ id: 'audio', label: 'Audio' }],
+            buyLinks: [
+              { label: 'Remote Shop', url: 'https://example.com/one', priceHint: '$109', trusted: true },
+            ],
+            mediaUrl: 'https://example.com/one.jpg',
+            noveltyScore: 0.44,
+            generatedAt: iso,
+            source: 'ai' as const,
+          },
+          {
+            id: 'remote-2',
+            title: 'Remote Product Two',
+            summary: 'Another summary',
+            whatItIs: 'Another item',
+            whyUseful: 'Another usefulness',
+            priceRange: { min: 59, max: 79, currency: 'USD' },
+            pros: ['Pro three', 'Pro four'],
+            cons: ['Con two'],
+            tags: [{ id: 'travel', label: 'Travel' }],
+            buyLinks: [
+              { label: 'Remote Shop 2', url: 'https://example.com/two', priceHint: '$69', trusted: true },
+            ],
+            mediaUrl: 'https://example.com/two.jpg',
+            noveltyScore: 0.33,
+            generatedAt: iso,
+            source: 'ai' as const,
+          },
+        ],
+        debug: { provider: 'remote' },
+      }),
+    ],
+    usage: { input_tokens: 123, output_tokens: 456 },
+  });
+};
+
+const resolveUrl = (input: Parameters<typeof fetch>[0]) => {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  if (typeof Request !== 'undefined' && input instanceof Request) return input.url;
+  return '';
+};
+
 beforeEach(() => {
   clearProductCache();
   fetchSpy.mockReset();
@@ -64,7 +122,7 @@ describe('requestProductPage', () => {
   });
 
   it('uses the remote provider when it succeeds', async () => {
-    const iso = new Date().toISOString();
+    queueSuccessfulAiResponse();
     const serpResponse = {
       ok: true,
       json: async () => ({
@@ -79,55 +137,20 @@ describe('requestProductPage', () => {
       }),
     } as Response;
 
-    mockResponsesCreate.mockResolvedValueOnce({
-      id: 'resp_123',
-      output_text: [
-        JSON.stringify({
-          products: [
-            {
-              id: 'remote-1',
-              title: 'Remote Product One',
-              summary: 'Remote summary',
-              whatItIs: 'Remote item',
-              whyUseful: 'Remote usefulness',
-              priceRange: { min: 99, max: 129, currency: 'USD' },
-              pros: ['Pro one', 'Pro two'],
-              cons: ['Con one'],
-              tags: [{ id: 'audio', label: 'Audio' }],
-              buyLinks: [
-                { label: 'Remote Shop', url: 'https://example.com/one', priceHint: '$109', trusted: true },
-              ],
-              mediaUrl: 'https://example.com/one.jpg',
-              noveltyScore: 0.44,
-              generatedAt: iso,
-              source: 'ai' as const,
-            },
-            {
-              id: 'remote-2',
-              title: 'Remote Product Two',
-              summary: 'Another summary',
-              whatItIs: 'Another item',
-              whyUseful: 'Another usefulness',
-              priceRange: { min: 59, max: 79, currency: 'USD' },
-              pros: ['Pro three', 'Pro four'],
-              cons: ['Con two'],
-              tags: [{ id: 'travel', label: 'Travel' }],
-              buyLinks: [
-                { label: 'Remote Shop 2', url: 'https://example.com/two', priceHint: '$69', trusted: true },
-              ],
-              mediaUrl: 'https://example.com/two.jpg',
-              noveltyScore: 0.33,
-              generatedAt: iso,
-              source: 'ai' as const,
-            },
-          ],
-          debug: { provider: 'remote' },
-        }),
-      ],
-      usage: { input_tokens: 123, output_tokens: 456 },
+    fetchSpy.mockImplementation((input) => {
+      const url = resolveUrl(input);
+      if (url.includes('serpapi.com')) {
+        return Promise.resolve(serpResponse);
+      }
+      return Promise.resolve(
+        new Response(null, {
+          status: 200,
+          headers: {
+            'content-type': 'image/jpeg',
+          },
+        })
+      );
     });
-
-    fetchSpy.mockResolvedValueOnce(serpResponse).mockResolvedValueOnce(serpResponse);
 
     const result = await requestProductPage(baseRequest);
 
@@ -135,5 +158,44 @@ describe('requestProductPage', () => {
     expect(result.response.products[0].id).toBe('remote-1');
     expect(result.response.debug?.provider).toBe('remote');
     expect(mockResponsesCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to placeholder media when remote assets fail validation', async () => {
+    queueSuccessfulAiResponse();
+    const serpResponse = {
+      ok: true,
+      json: async () => ({
+        shopping_results: [
+          {
+            store: 'Another Retailer',
+            link: 'https://example.com/shop',
+            price: '$209',
+            shipping: 'Free Shipping',
+          },
+        ],
+      }),
+    } as Response;
+
+    fetchSpy.mockImplementation((input) => {
+      const url = resolveUrl(input);
+      if (url.includes('serpapi.com')) {
+        return Promise.resolve(serpResponse);
+      }
+      return Promise.resolve(
+        new Response(null, {
+          status: 404,
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+          },
+        })
+      );
+    });
+
+    const result = await requestProductPage(baseRequest);
+
+    expect(result.response.products).toHaveLength(2);
+    result.response.products.forEach((product) => {
+      expect(product.mediaUrl).toMatch(/^\/media\/placeholders\//);
+    });
   });
 });
